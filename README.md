@@ -15,6 +15,18 @@ The Bloom has overrun Sector 9. Its spores turn people into *husks*. You're one 
 
 Explore along the way. Supplies respawn, nests can be destroyed, and the wasteland hides the story of what happened here.
 
+## Scoring
+- Radio part found: + 100
+- Husk killed: + 100
+- Surviving evac: + 5 for every point of health you have left****
+
+## Tips 
+- Radio parts glow yellow so you're able to spot them through the fog.
+- Medkits restore 35 health.
+- Ammo boxes give you an extra 15 bullets.
+- Shoot barrels to make them explode, explosions kill nearby husks, set off other barrels, and move the decayed school bus in the map. Don't stand too close, they can injure you too!
+- There are a few hidden secrets around the map.
+
 ### Controls
 
 | Action | Control |
@@ -121,14 +133,3 @@ Last_Signal/
 - Game Design, programming, and models: Renee Guldi
 - Course: CSCI 310, GUI and Game Development, Project 4
 
-** Tips **
-- Radio parts glow yellow so you're able to spot them through the fog.
-- Medkits restore 35 health.
-- Ammo boxes give you an extra 15 bullets.
-- Shoot barrels to make them explode, explosions kill nearby husks, set off other barrels, and move the decayed school bus in the map. Don't stand too close, they can injure you too!
-- There are a few hidden secrets around the map.
-
-## Scoring
-- Radio part found: + 100
-- Husk killed: + 100
-- Surviving evac: + 5 for every point of health you have left
