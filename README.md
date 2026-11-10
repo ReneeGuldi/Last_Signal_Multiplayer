@@ -143,5 +143,5 @@ Last_Signal/
 
 ## Credits
 - Game Design, programming, and models: Renee Guldi
-- Course: CSCI 310, GUI and Game Development, Project 4
+- Course: CSCI 310, GUI and Game Development, Project 3 (Adding Multiplayer to Project 2)
 
