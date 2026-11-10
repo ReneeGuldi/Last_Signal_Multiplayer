@@ -16,16 +16,28 @@ The Bloom has overrun Sector 9. Its spores turn people into *husks*. You're one 
 Explore along the way. Supplies respawn, nests can be destroyed, and the wasteland hides the story of what happened here.
 
 ## Scoring
-- Radio part found: + 100
-- Husk killed: + 100
-- Surviving evac: + 5 for every point of health you have left****
+
+| Action | Points |
+| --- | --- |
+| Radio Part Found | +100 |
+| Runner killed | +75 |
+| Husk killed | +100 |
+| Brute killed | +300 |
+| Bloom nest destroyed | +250 |
+| Secret Found | +50 |
+| Surviving Evac | +5 for every point of health you have left |
 
 ## Tips 
-- Radio parts glow yellow so you're able to spot them through the fog.
-- Medkits restore 35 health.
-- Ammo boxes give you an extra 15 bullets.
-- Shoot barrels to make them explode, explosions kill nearby husks, set off other barrels, and move the decayed school bus in the map. Don't stand too close, they can injure you too!
-- There are a few hidden secrets around the map.
+- **Radio parts glow yellow** so you're able to spot them through the fog.
+- **Medkits restore 35 health.** You won't pick one up at full health, so it stays there for later.
+- **Ammo boxes give you an extra 15 bullets.**
+- **Supplies respawn.** Ammo comes back after 40 seconds and medkits after 60. Loot dropped by husks and nests blinks and disappears after 25 seconds, so grab it fast.
+- **Out of ammo? Press `F` to shove.** It knocks husks back and stuns them. Brutes barely move, but a shove interrupts their charge.
+- **Watch for the wind-up.** A husk that crouches and glows orange is about to lunge at you, so sidestep.
+- **Gunfire is loud.** Shooting draws in every husk nearby, so pick your fights.
+- **Shoot barrels to make them explode.** Explosions kill normal husks and runners, stagger brutes, damage nests, set off other barrels, and can blow the wrecked school bus loose. Barrels near the barricade on the evac road are your way through. Don't stand too close, they can injure you too!
+- **Destroy the Bloom nests**, or they will keep spawning husks.
+- **There are hidden secrets around the map** that tells the story of what happened in Sector 9.
 
 ### Controls
 
