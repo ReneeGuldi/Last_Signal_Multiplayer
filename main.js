@@ -81,6 +81,8 @@ const MODEL_FILES = {
     shotgun: 'models/shotgun.gltf',
     machete: 'models/machete.gltf',
     nest: 'models/nest.gltf',
+    runner: 'models/husk_runner.gltf',
+    brute: 'models/husk_brute.gltf',
 };
 
 const models = {};
@@ -91,7 +93,8 @@ async function loadModels() {
     const results = await Promise.allSettled(names.map((n) => loader.loadAsync(MODEL_FILES[n])));
     names.forEach((name, i) => {
         if (results[i].status === 'rejected') {
-            console.warn(`Couldn't load ${name} (${MODEL_FILES[name]}), using a placeholder`);
+            const fallback = (name === 'runner' || name === 'brute') ? 'the normal husk' : 'a placeholder';
+            console.warn(`Couldn't load ${name} (${MODEL_FILES[name]}), using ${fallback}`);
             return;
         }
         const model = results[i].value.scene;
@@ -915,25 +918,57 @@ const husks = [];
 const HUSK_TURN = 0;
 const HUSK_MODEL_SCALE = 2.4;
 
+// Difficulty knobs: change these to make husks easier or harder
+const HUSK_TUNING = {
+    speed: 0.85,        // multiplies every husk's walk and lunge speed (1 = original)
+    nestInterval: 16,   // seconds between nest spawns (was 10)
+    nestCap: 3,         // a nest stops spawning once this many husks are near it (was 5)
+    nestRange: 30,      // nests only spawn while you're this close (was 35)
+    waveMax: 20,        // most husks alive at once during the evac (was 30)
+    waveSlowest: 5,     // seconds between evac spawns at the start (was 4)
+    waveFastest: 2.5,   // seconds between evac spawns at the end (was 1.6)
+};
+
+// model: the Blockbench file to use (from MODEL_FILES). If it's missing,
+// the normal husk model is used instead, tinted with `tint`.
 const HUSK_TYPES = {
-    normal: { hp: 3, speed: 3.5, scale: 1, tint: null, damage: 15, aggroRange: 30, score: 100, drop: 0.3,
+    normal: { model: 'husk', hp: 3, speed: 3.5, scale: 1, tint: null, damage: 15, aggroRange: 30, score: 100, drop: 0.3,
                 lungeRange: 4.5, windup: 0.4, lungeSpeed: 11, lungeTime: 0.3 },
-    runner: { hp: 1, speed: 7, scale: 0.75, tint: 0xd07040, damage: 8, aggroRange: 35, score: 75, drop: 0.15,
+    runner: { model: 'runner', hp: 1, speed: 7, scale: 0.75, tint: 0xd07040, damage: 8, aggroRange: 35, score: 75, drop: 0.15,
               lungeRange: 5, windup: 0.25, lungeSpeed: 16, lungeTime: 0.3 },
-    brute:  { hp: 12, speed: 2.2, scale: 1.6, tint: 0x6a2a2a, damage: 30, aggroRange: 25, score: 300, drop: 1,
+    brute:  { model: 'brute', hp: 12, speed: 2.2, scale: 1.6, tint: 0x6a2a2a, damage: 30, aggroRange: 25, score: 300, drop: 1,
               lungeRange: 12, windup: 0.9, lungeSpeed: 14, lungeTime: 0.7, heavy: true },
+}
+
+// How tall a model is, in its own units (cached, so each model is only measured once)
+const modelHeights = {};
+function modelHeight(name) {
+    if (!(name in modelHeights)) {
+        const size = new THREE.Box3().setFromObject(models[name]).getSize(new THREE.Vector3());
+        modelHeights[name] = size.y || 1;
+    }
+    return modelHeights[name];
 }
 
 // home: if given, the husk is a guard. It shuffles around home, only notices you
 //       inside guardRadius, and walks back if you lead it too far away.
 // alerted: spawn already hunting the player (ambushes, nest spawns, evac waves)
 function createHusk(x, z, type = 'normal', { home = null, guardRadius = 12, alerted = false, y = 0 } = {}) {
-    const t = HUSK_TYPES[type];
+    const base = HUSK_TYPES[type];
+    const t = { ...base, speed: base.speed * HUSK_TUNING.speed, lungeSpeed: base.lungeSpeed * HUSK_TUNING.speed };
     const radius = 0.5 * t.scale;
-    const mesh = spawnModel('husk', t.scale * HUSK_MODEL_SCALE, -radius);
+
+    // Use the type's own model if it loaded, sized to match a normal husk times t.scale,
+    // so it doesn't matter what scale it was built at in Blockbench
+    const ownModel = t.model !== 'husk' && models[t.model] && models.husk;
+    const modelName = ownModel ? t.model : 'husk';
+    let modelScale = t.scale * HUSK_MODEL_SCALE;
+    if (ownModel) modelScale *= modelHeight('husk') / modelHeight(t.model);
+    const mesh = spawnModel(modelName, modelScale, -radius);
     mesh.children[0].rotation.y = HUSK_TURN;
 
-    if (t.tint) {
+    // tint only the stand-in; custom models keep their own textures
+    if (t.tint && !ownModel) {
         const tint = new THREE.Color(t.tint);
         mesh.traverse((c) => { if (c.isMesh) c.material.color.lerp(tint, 0.6); });
     }
@@ -1255,7 +1290,7 @@ const PICKUP_TYPES = {
     ammo:        { model: 'ammo', scale: 1.5, respawn: 40, label: 'Pistol ammo' },
     shells:      { model: 'ammo', scale: 1.5, respawn: 50, label: 'Shotgun shells', tint: 0xb04a2a },
     shotgun:     { model: 'shotgun', weapon: 'shotgun', length: 0.9, label: 'the Shotgun' },
-    machete:     { model: 'machete', weapon: 'machete', length: 0.7, label: 'the Machete' },
+    machete:     { model: 'machete', weapon: 'machete', length: 1.1,  roll: Math.PI / 2, label: 'the Machete' },
 };
 
 const pickups = [];
@@ -1267,7 +1302,9 @@ function spawnPickup(type, x, z, { temporary = false, y = 0 } = {}) {
     let mesh;
     if (config.length) {
         mesh = new THREE.Group();
-        mesh.add(sizedModel(config.model, config.length));
+        const item = sizedModel(config.model, config.length);
+        if (config.roll) item.rotation.z = config.roll; // stand flat models on edge so they're visible
+        mesh.add(item);
         scene.add(mesh);
     } else {
         mesh = spawnModel(config.model, config.scale, 0);
@@ -1492,14 +1529,15 @@ function closeNote() {
 // Glowing ods inside buildings that keep spawning husks until you destroy them.
 const nests = [];
 const NEST_GLOW = 0x66ff44;
-const NEST_SCALE = 2.4; // same as the husks, if the nest is built at the same Blockbench scale
+const NEST_HEIGHT = 2.2; 
  
 function spawnNest(x, z) {
     const g = new THREE.Group();
  
     let pod;
     if (models.nest) {
-        pod = spawnModel('nest', NEST_SCALE, 0);
+        const raw = new THREE.Box3().setFromObject(models.nest).getSize(new THREE.Vector3()).y || 1;
+        pod = spawnModel('nest', NEST_HEIGHT / raw, 0);
         g.add(pod);
         // only the "core" group glows, the rest keeps its texture
         const core = pod.getObjectByName('core');
@@ -1524,8 +1562,8 @@ function spawnNest(x, z) {
         }
     }
  
-    const light = new THREE.PointLight(NEST_GLOW, 4, 10);
-    light.position.y = 1;
+    const light = new THREE.PointLight(NEST_GLOW, 4, 12);
+    light.position.y = 1.2;
     g.add(light);
  
     g.position.set(x, 0, z);
@@ -1545,16 +1583,16 @@ function updateNests(dt, time) {
  
         // only active while the player is nearby
         const dist = Math.hypot(playerBody.position.x - n.x, playerBody.position.z - n.z);
-        if (dist > 35) continue;
+        if (dist > HUSK_TUNING.nestRange) continue;
  
         n.spawnTimer -= dt;
         if (n.spawnTimer > 0) continue;
-        n.spawnTimer = 10;
+        n.spawnTimer = HUSK_TUNING.nestInterval;
  
         // cap how many husks one nest can have around it
         const nearby = husks.filter((h) => !h.dead &&
             Math.hypot(h.body.position.x - n.x, h.body.position.z - n.z) < 15).length;
-        if (nearby >= 5) continue;
+        if (nearby >= HUSK_TUNING.nestCap) continue;
  
         const a = Math.random() * Math.PI * 2;
         createHusk(n.x + Math.cos(a) * 1.5, n.z + Math.sin(a) * 1.5,
@@ -3540,9 +3578,9 @@ const WEAPONS = {
         viewPos: [0, 0.02, -0.12], viewRot: [0, 0, 0], flip: false,
     },
     machete: {
-        name: 'Machete', slot: 3, model: 'machete', length: 0.65,
+        name: 'Machete', slot: 3, model: 'machete', length: 0.9,
         melee: true, damage: 2, cooldown: 0.45, reach: 2.6,
-        viewPos: [0.05, 0.08, -0.05], viewRot: [0.35, 0, -0.5], flip: false,
+        viewPos: [0.02, 0.2, -0.15], viewRot: [0.5, 0, -0.5], flip: false,
     },
 };
 const WEAPON_ORDER = ['pistol', 'shotgun', 'machete'];
@@ -3927,8 +3965,9 @@ function updateTower(dt, time) {
         // waves get faster and nastier as the chopper gets closer
         waveTimer -= dt;
         const alive = husks.filter((h) => !h.dead).length;
-        if (waveTimer <= 0 && alive < 30) {
-            waveTimer = Math.max(1.6, 4 - progress * 2.5);
+        if (waveTimer <= 0 && alive < HUSK_TUNING.waveMax) {
+            const { waveSlowest: slow, waveFastest: fast } = HUSK_TUNING;
+            waveTimer = slow - (slow - fast) * progress;
             const [sx, sz] = LZ_SPAWNS[Math.floor(Math.random() * LZ_SPAWNS.length)];
             let type = Math.random() < 0.4 ? 'runner' : 'normal';
             if (progress > 0.5 && Math.random() < 0.15) type = 'brute';
