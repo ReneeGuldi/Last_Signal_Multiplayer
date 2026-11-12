@@ -4,16 +4,16 @@ A low-poly, first-person survival, first-person survival shooter built with [Thr
 
 The Bloom has overrun Sector 9. Its spores turn people into *husks*. You're one of the last survivors, and the only way out is to repair the old radio tower, call in an evac chopper, and hold the landing zone until it touches down. 
 
-**Play solo in your browser:** `https://reneeguldi.github.io/Last_Signal/` *(the GitHub Pages version is single-player; see [Multiplayer](#multiplayer) to play together)
+**Play solo in your browser:** `https://reneeguldi.github.io/Last_Signal_Multiplayer/` *(the GitHub Pages version is single-player; see [Multiplayer](#multiplayer) to play together)
 
 ## How to Play
 
-1. **Find the three radio parts**: the battery, antenna coil, and the transmitter. Each one glows yellow and is guarded by husks.
+1. **Follow the dirt path into town and find the three radio parts**: the battery, antenna coil, and the transmitter. Each one glows yellow and is guarded by husks.
 2. **Bring them to the radio tower** to send the distress signal. The beacon starts flashing and a chopper appears overhead.
 3. **Fight your way down the evac road** to the south. Watch for wrecks, barbed wire, fire, a barricade and ambushes.
 4. **Hold the landing zone for 45 seconds** while the chopper descends and the husks get more aggressive.
 
-Explore along the way. Supplies respawn, nests can be destroyed, and the wasteland hides the story of what happened here.
+Explore along the way. The police station and hardware store hide better weapons, supplies respawn, nests can be destroyed, and notes scattered around town tell the story of what happened here.
 
 ## Scoring
 
@@ -24,20 +24,22 @@ Explore along the way. Supplies respawn, nests can be destroyed, and the wastela
 | Husk killed | +100 |
 | Brute killed | +300 |
 | Bloom nest destroyed | +250 |
-| Secret Found | +50 |
+| Secret Found (first time) | +50 |
 | Surviving Evac | +5 for every point of health you have left |
 
 ## Tips 
 - **Radio parts glow yellow** so you're able to spot them through the fog.
 - **Medkits restore 35 health.** You won't pick one up at full health, so it stays there for later.
-- **Ammo boxes give you an extra 15 bullets.**
+- **Press `E` to pick things up and read notes.** A prompt appears when you're close enough.
+- **Ammo boxes give you 15 pistol bullets. Red ammo boxes give you 6 shotgun shells.** Husks sometimes drop either one.
 - **Supplies respawn.** Ammo comes back after 40 seconds and medkits after 60. Loot dropped by husks and nests blinks and disappears after 25 seconds, so grab it fast.
-- **Out of ammo? Press `F` to shove.** It knocks husks back and stuns them. Brutes barely move, but a shove interrupts their charge.
+- **Out of ammo? Switch to the machete, or press `F` to shove.** It knocks husks back and stuns them. Brutes barely move, but a shove interrupts their charge.
 - **Watch for the wind-up.** A husk that crouches and glows orange is about to lunge at you, so sidestep.
-- **Gunfire is loud.** Shooting draws in every husk nearby, so pick your fights.
+- **Gunfire is loud.** Shooting draws in every husk nearby (the shotgun even more), so pick your fights. The machete is silent.
+- **Husks follow you inside.** They can climb stairs and come through doors, but brutes are too big for the stairs, so an upper floor is a safe spot to fight a brute from.
 - **Shoot barrels to make them explode.** Explosions kill normal husks and runners, stagger brutes, damage nests, set off other barrels, and can blow the wrecked school bus loose. Barrels near the barricade on the evac road are your way through. Don't stand too close, they can injure you too!
 - **Destroy the Bloom nests**, or they will keep spawning husks.
-- **There are hidden secrets around the map** that tells the story of what happened in Sector 9.
+- **There are notes hidden around the map** that tell the story of what happened in Sector 9.
 
 ### Controls
 
@@ -47,12 +49,23 @@ Explore along the way. Supplies respawn, nests can be destroyed, and the wastela
 | Sprint | `Shift` |
 | Jump | `Space` |
 | Look around | `Mouse` |
+| Attack (shoot or swing) | `Left-Click` |
+| Interact / pick up / read | `E` |
+| Switch weapon | `1` `2` `3` or `Mouse Wheel` |
 | Shove (works with no ammo) | `F` |
-| Shoot | `Left-Click` | 
 | Restart | `R` |
 | Pause / Release mouse | `Esc` |
 
+### Weapons
+
+| Weapon | Where to find it | What to expect |
+| --- | --- | --- |
+| **Pistol** (`1`) | You start with it | Accurate, long range, uses pistol ammo. |
+| **Shotgun** (`2`) | Police station armory, upstairs | Fires a spread of 7 pellets. Slow between shots and loud, but devastating up close. Uses shells. |
+| **Machete** (`3`) | Hardware store workbench | Melee: hits everything in an arc in front of you, never runs out, and doesn't alert other husks. |
+
 ### Enemies
+
 | Husk | What to expect |
 | --- | --- |
 | **Normal** | Human-sized and steady. Crouches and glows before lunging at you, which is your cue to sidestep. |
@@ -67,9 +80,11 @@ Gunshots and explosions are loud: husks nearby will come looking for you.
 ## Features
 - **Physics everywhere** (cannon-es): crates tumble, explosive barrels chain-react, and the bus can be blown loose.
 - **Husk AI** with guarding, wandering, alerting nearby husks, lunging and losing interest.
-- **A large map** with a gas station, a collapsed house, a crashed bus, a military checkpoint, a diner, a farm, a chapel and graveyard, a crashed helicopter, and a walled evacuation route to the landing zone.
-- **Environmental storytelling** through hidden journal pages and other secrets.
-- **Custom Blockbench models** for the husks, survivor characters, pickups, and props.
+- **A small town to explore**: streets with sidewalks, street lamps and abandoned cars, a police station and an apartment block with two floors, a pharmacy, a hardware store, houses, a gas station, a diner, a crashed bus, a military checkpoint, a farm, a chapel and graveyard, a crashed helicopter, and a walled evacuation route to the landing zone. Buildings are furnished, and many can be entered.
+- **Three weapons**: pistol, shotgun and machete, with the shotgun and machete found by exploring.
+- **Husks that follow you indoors**, up and down stairs and through doorways.
+- **Environmental storytelling** through notes you can read, skeletons, and other secrets.
+- **Custom Blockbench models** for the husks, survivor characters, weapons, nests, pickups, and props.
 - **Multiplayer**: see the other survivors in real-time, each with a hoodie tinted in their own color, a name tag, walking animation, and visible gunfire.
 
 ---
@@ -110,13 +125,13 @@ Enter a name and pick a character (Female or Male). Other players see your choic
 ## Project Structure
 
 ```
-Last_Signal/
+Last_Signal_Multiplayer/
 |-- index.html     Page, HUD, start screen and import map (Three.js, cannon-es, and Socket.IO from CDN)
-|-- main.js    The game: world, physics, husks, pickups, shooting, evac sequence
+|-- main.js        The game: town, physics, husks, weapons, pickups, notes, evac sequence
 |-- net.js      Multiplayer client: connects to the server and draws other players.
 |-- models/      Blockbench models exported as .gltf
 |-- server/
-|   |-- sever.js      Static file server and Socket.IO relay
+|   |-- server.js     Static file server and Socket.IO relay
 |   |-- package.json
 |-- Dockerfile      Runs the game and server in one container
 |-- .dockerignore
@@ -130,6 +145,12 @@ Last_Signal/
 - Other events: `hello` (name and character), `join` / `leave`, `profile` (character change), `shot` (tracer from another player), and `full` (server at its 8-player limit).
 - If no server is reachable, for example on GitHub Pages, or when opened as a file, the game simply runs single-player.
 
+---
+
+### Tuning Difficulty
+
+Husk speed and how often they spawn are set in the `HUSK_TUNING` block near the top of the husk section in `main.js`: an overall speed multiplier, how often nests spawn and how many husks they keep around them, and how fast evac waves come.
+ 
 ---
 
 ## Built with
