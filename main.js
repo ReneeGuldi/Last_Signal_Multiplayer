@@ -81,8 +81,8 @@ const MODEL_FILES = {
     shotgun: 'models/shotgun.gltf',
     machete: 'models/machete.gltf',
     nest: 'models/nest.gltf',
-    runner: 'models/husk_runner.gltf',
-    brute: 'models/husk_brute.gltf',
+    runner: 'models/husk_ver_3.gltf',
+    brute: 'models/husk_ver_2.gltf',
 };
 
 const models = {};
