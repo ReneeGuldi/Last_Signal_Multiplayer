@@ -915,7 +915,7 @@ function hurtPlayer(amount, fromPos = null, push = 0) {
 //------------------------------------------------
 // Husks
 const husks = [];
-const HUSK_TURN = 0;
+const HUSK_TURN = Math.PI;
 const HUSK_MODEL_SCALE = 2.4;
 
 // Difficulty knobs: change these to make husks easier or harder
@@ -965,7 +965,7 @@ function createHusk(x, z, type = 'normal', { home = null, guardRadius = 12, aler
     let modelScale = t.scale * HUSK_MODEL_SCALE;
     if (ownModel) modelScale *= modelHeight('husk') / modelHeight(t.model);
     const mesh = spawnModel(modelName, modelScale, -radius);
-    mesh.children[0].rotation.y = HUSK_TURN;
+    mesh.children[0].rotation.y = ownModel && t.turn !== undefined ? t.turn : HUSK_TURN;
 
     // tint only the stand-in; custom models keep their own textures
     if (t.tint && !ownModel) {
