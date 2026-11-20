@@ -35,7 +35,6 @@ import { KEY_NAMES, createDoor } from './doors.js';
 //    to MODEL_FILES or buildings to BUILDING_MODELS, and the game will load it automatically.
 
 
-2. Building and furniture placement
 const BLOCKBENCH_SCALE = 2.4;
 export const drawers = [];
 const DRAWER_SPEED = 3; // how fast drawers slide (fraction of the way per second)

@@ -1,10 +1,10 @@
 
 // Last Signal networking (client side)
 // ------------------------------------------------
-// Connects to the multiplayer server, sends our position, and draws other players
-// using the survivor models: hoodie tinted in each player's color, name tag overhead,
-// arms and legs swinging while they walk.
-// If no server can be reached, the game just stays single-player.
+// Connects to the multiplayer server, hosts or joins a lobby by its code, sends our
+// position, and draws other players using the survivor models: hoodie tinted in each
+// player's color, name tag overhead, arms and legs swinging while they walk.
+// Until you host or join a lobby (or if no server can be reached) you play solo.
 
 import * as THREE from 'three';
 import { io } from 'socket.io-client';
@@ -27,6 +27,13 @@ let myProfile = { name: 'Survivor', model: 'female' };
 let onStatus = () => {};
 let onMyColor = () => {};
 let onRemoteShot = () => {};
+let onRemoteDoor = () => {};
+let onLobby = () => {};
+
+// The lobby we're in: { code, hostId } or null when playing solo
+let lobby = null;
+// A host/join request waiting for the server's answer
+let pending = null;
 
 // Player colors, handed out by the server in this order (index = color slot)
 export const PLAYER_COLORS = [0x3f8cff, 0xff7a2f, 0x4fd34f, 0xb05cff, 0xffd23f, 0x2fd6c8, 0xff5c9a, 0xe8e8e8];
@@ -236,9 +243,45 @@ function removeRemote(id) {
 function listen() {
     socket.on('welcome', (msg) => {
         myId = msg.id;
+    });
+
+    // We're in a lobby (we hosted it, joined it, or rejoined after losing connection)
+    socket.on('joined', (msg) => {
+        myId = msg.id;
+        clearRemotes();
+        lobby = { code: msg.code, hostId: msg.hostId };
         onMyColor(PLAYER_COLORS[msg.color % PLAYER_COLORS.length]);
+        // main.js starts a fresh run, then copies the doors other players already changed
+        onLobby(lobbyInfo(), { joined: true, doors: msg.doors || {} });
         msg.players.forEach(addRemote);
         onStatus(remotes.size);
+        if (pending) pending.resolve(lobbyInfo());
+        pending = null;
+    });
+
+    socket.on('joinError', (msg) => {
+        if (pending) {
+            pending.reject(new Error(msg.reason));
+        } else {
+            // couldn't get back into our lobby after reconnecting (it closed): back to solo
+            lobby = null;
+            clearRemotes();
+            onLobby(null, { error: msg.reason });
+        }
+        pending = null;
+    });
+
+    socket.on('left', () => {
+        lobby = null;
+        clearRemotes();
+        onLobby(null, {});
+    });
+
+    // the host left, someone else (maybe us) runs the game now
+    socket.on('host', (msg) => {
+        if (!lobby) return;
+        lobby.hostId = msg.id;
+        onLobby(lobbyInfo(), { hostChanged: true });
     });
 
     socket.on('join', addRemote);
@@ -265,8 +308,17 @@ function listen() {
     });
 
     socket.on('shot', (msg) => onRemoteShot(msg.from, msg.to));
+    socket.on('door', (msg) => onRemoteDoor(msg.id, msg.state));
 
-    socket.on('full', () => console.log('Server is full, playing solo.'));
+}
+
+function clearRemotes() {
+    for (const id of [...remotes.keys()]) removeRemote(id);
+}
+
+function lobbyInfo() {
+    if (!lobby) return null;
+    return { code: lobby.code, isHost: lobby.hostId === myId, players: remotes.size + 1 };
 }
 
 //------------------------------------------------
@@ -278,6 +330,8 @@ export function initNetwork(gameScene, options = {}) {
     if (options.statusCallback) onStatus = options.statusCallback;
     if (options.myColorCallback) onMyColor = options.myColorCallback;
     if (options.remoteShotCallback) onRemoteShot = options.remoteShotCallback;
+    if (options.remoteDoorCallback) onRemoteDoor = options.remoteDoorCallback;
+    if (options.lobbyCallback) onLobby = options.lobbyCallback;
 
     const url = pickServerUrl();
     if (!url) {
@@ -290,12 +344,52 @@ export function initNetwork(gameScene, options = {}) {
 
     socket.on('connect', () => {
         console.log('Connected to', url);
-        sendProfile(myProfile);
+        // lost connection while in a lobby: try to get back into it
+        if (lobby) socket.emit('join', { code: lobby.code, ...myProfile });
     });
     socket.on('disconnect', () => {
         console.log('Disconnected, trying to reconnect...');
-        for (const id of [...remotes.keys()]) removeRemote(id);
+        clearRemotes();
+        if (lobby) onLobby(lobbyInfo(), { reconnecting: true });
     });
+}
+
+// Can this copy of the game play online at all? (false on GitHub Pages with no server)
+export function multiplayerAvailable() {
+    return !!socket;
+}
+
+function request(event, data) {
+    if (!isOpen()) return Promise.reject(new Error("Can't reach the server right now."));
+    if (pending) pending.reject(new Error('Cancelled'));
+    return new Promise((resolve, reject) => {
+        pending = { resolve, reject };
+        socket.emit(event, data);
+    });
+}
+
+// Start a new lobby and get its code to share. Resolves with { code, isHost, players }.
+export function hostGame() {
+    return request('host', myProfile);
+}
+
+// Join a friend's lobby by its code. Rejects with a message if the code is wrong or full.
+export function joinGame(code) {
+    return request('join', { code, ...myProfile });
+}
+
+// Leave the lobby and go back to playing solo
+export function leaveGame() {
+    if (isOpen() && lobby) socket.emit('leaveLobby');
+}
+
+export function getLobby() {
+    return lobbyInfo();
+}
+
+// Is this player the one running the game? (always true when playing solo)
+export function isHost() {
+    return !lobby || lobby.hostId === myId;
 }
 
 function isOpen() {
@@ -305,13 +399,13 @@ function isOpen() {
 // Tell the server (and everyone else) our name and which character we picked
 export function sendProfile(profile) {
     myProfile = profile;
-    if (!isOpen()) return;
+    if (!isOpen() || !lobby) return;
     socket.emit('hello', { name: profile.name, model: profile.model });
 }
 
 // Call every frame with the player's physics position and the camera's facing
 export function sendState(dt, position, rotY) {
-    if (!isOpen()) return;
+    if (!isOpen() || !lobby) return;
     sendTimer -= dt;
     if (sendTimer > 0) return;
     sendTimer = 1 / SEND_RATE;
@@ -324,11 +418,22 @@ export function sendState(dt, position, rotY) {
 }
 
 export function sendShot(from, to) {
-    if (!isOpen()) return;
+    if (!isOpen() || !lobby) return;
     socket.emit('shot', {
         from: { x: from.x, y: from.y, z: from.z },
         to: { x: to.x, y: to.y, z: to.z },
     });
+}
+
+// A door was opened, closed, unlocked or had boards knocked off
+export function sendDoor(id, state) {
+    if (!isOpen() || !lobby) return;
+    socket.emit('door', { id, state });
+}
+
+// Is anyone else playing with us right now?
+export function othersOnline() {
+    return remotes.size > 0;
 }
 
 // Smoothly slide other players toward their latest known position and animate walking
