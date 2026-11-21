@@ -154,10 +154,11 @@ export function buildFireStation(x, z) {
             fDebris(b, 4, 3, y, 4);
         },
     });
-    // big bay door painted on the front, jammed shut
+    // big bay door on the front, jammed shut. It sits just in front of the windows and sills
+    // (at the same depth as them, the two surfaces flicker)
     const b = makeBuilder(x, z);
-    b.box(3.6, 3.2, 0.06, 4.5, 1.6, 6.17, 0xc8c0b0);
-    for (let k = 0; k < 6; k++) b.box(3.6, 0.04, 0.08, 4.5, 0.4 + k * 0.5, 6.2, 0x8a8478);
+    b.box(3.6, 3.2, 0.06, 4.5, 1.6, 6.34, 0xc8c0b0);
+    for (let k = 0; k < 6; k++) b.box(3.6, 0.04, 0.08, 4.5, 0.4 + k * 0.5, 6.39, 0x8a8478);
     b.box(1.6, 0.5, 0.08, 0, 3.15, 6.2, RED); // "9" sign over the door
     b.finish();
 }

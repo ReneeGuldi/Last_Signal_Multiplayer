@@ -229,14 +229,15 @@ export function buildStreetDetails() {
     buildCar(-93, -2, 0.25, 0x4a4a5a, true);
 
     // Benches, hydrants and mailboxes along the sidewalks (Blockbench models; skipped if not loaded)
-    [[-20, 1], [6, -1], [40, 1]].forEach(([bz, side]) => {
+    // (kept away from the crossroads at z = -36, 0 and 40)
+    [[-20, 1], [20, -1], [60, 1]].forEach(([bz, side]) => {
         placeProp('park_bench', side * edge, bz, -side * Math.PI / 2); // facing the road
     });
     [[-24, 1], [16, 1], [30, -1], [56, 1]].forEach(([hz, side]) => {
         placeProp('fire_hydrant', side * (edge - 0.3), hz, 0);
     });
     [[-22, -1], [-30, 1], [24, -1], [72, 1], [88, -1]].forEach(([mx, side]) => {
-        placeProp('mailbox', mx, side * edge, side > 0 ? Math.PI : 0);
+        placeProp('mailbox', mx, side * edge, side > 0 ? 0 : Math.PI); // door toward the street
     });
 }
  

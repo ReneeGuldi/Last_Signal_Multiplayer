@@ -39,7 +39,7 @@ export function buildStaticWorld() {
     building('farmhouse', ...LAYOUT.farm, { rotY: 0 }, () => buildFarm(...LAYOUT.farm));
     buildCrashedChopper(...LAYOUT.crash);
     // The Blockbench chapel is modeled big, so it's placed at half size (scale 1.2) with its doors facing town
-    if (building('chapel', ...LAYOUT.chapel, { rotY: Math.PI, scale: 1.2, center: true }, () => buildChapel(...LAYOUT.chapel))) {
+    if (building('chapel', ...LAYOUT.chapel, { rotY: Math.PI, scale: 1.2, center: true, y: 0.03 }, () => buildChapel(...LAYOUT.chapel))) {
         furnishChapel(...LAYOUT.chapel);
     }
  

@@ -33,9 +33,9 @@ export const LAYOUT = {
     sub5:       [-94, 13],
     shed:       [-62, -23], // backyard of sub1
     // North End, north side of North Street (all face south)
-    school:     [-24, 54],  // 2 floors
-    clinic:     [-4, 53.5],
-    laundromat: [12, 53],
+    school:     [-30, 54],  // 2 floors (20 wide: x -40 to -20)
+    clinic:     [-13, 53.5],// 12 wide: x -19 to -7, just west of Main Street's sidewalk
+    laundromat: [13, 53],   // 10 wide: x 8 to 18, just east of Main Street's sidewalk
     garage:     [32, 54.5],
 };
  
