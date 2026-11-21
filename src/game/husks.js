@@ -5,7 +5,7 @@ import * as CANNON from 'cannon-es';
 import { scene, world } from '../core/engine.js';
 import { modelHeight, models, spawnModel } from '../core/models.js';
 import { game } from '../core/state.js';
-import { sendWorld } from '../net.js';
+import { isDevLobby, sendWorld } from '../net.js';
 import { dropLoot, giveScore, hurtTeammate, nearestTarget, runsWorld } from './coop.js';
 import { flashRed } from './effects.js';
 import { hurtPlayer } from './player.js';
@@ -47,6 +47,8 @@ const HUSK_TYPES = {
 export function createHusk(x, z, type = 'normal', { home = null, guardRadius = 12, alerted = false, y = 0, puppet = false, id = null } = {}) {
     // Only the host makes real husks. Everyone else gets puppets from the host's updates.
     if (!puppet && !runsWorld()) return null;
+    // The development lobby (code DEV0 by default) has no husks at all, for building and testing
+    if (!puppet && isDevLobby()) return null;
     const base = HUSK_TYPES[type] || HUSK_TYPES.normal;
     const t = { ...base, speed: base.speed * HUSK_TUNING.speed, lungeSpeed: base.lungeSpeed * HUSK_TUNING.speed };
     const radius = 0.5 * t.scale;

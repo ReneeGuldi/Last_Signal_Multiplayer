@@ -66,6 +66,11 @@ const DOOR_KINDS = ['closed', 'locked', 'boarded', 'broken'];
 const MAX_DOORS = 500;
 // No 0/O or 1/I, so codes are easy to read out loud
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Development lobby: joining with this code makes (or joins) a lobby where no husks spawn.
+// It has a 0 in it, so a normal random code can never be the same. To change it on a hosted
+// server (like Render), set the DEV_CODE environment variable; set it to "off" to turn it off.
+const DEV_CODE = (process.env.DEV_CODE || 'DEV0').trim().toUpperCase().slice(0, 4);
+const DEV_ENABLED = DEV_CODE !== 'OFF';
 
 // code -> { code, players: Map(socket.id -> player), hostId, doorStates: Map }
 const lobbies = new Map();
@@ -75,7 +80,7 @@ function makeCode() {
     let code;
     do {
         code = Array.from({ length: 4 }, () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]).join('');
-    } while (lobbies.has(code));
+    } while (lobbies.has(code) || code === DEV_CODE);
     return code;
 }
 
@@ -107,7 +112,7 @@ function cleanProfile(msg, id) {
 }
 
 io.on('connection', (socket) => {
-    // a short number for each player (socket.id is a long random string)
+    // our own short number for each player (socket.id is a long random string)
     const player = { id: nextId++, socket, state: { x: 0, y: 2, z: 10, rotY: 0, dead: false }, profile: null, color: 0, lobby: null };
     socket.emit('welcome', { id: player.id });
 
@@ -124,6 +129,7 @@ io.on('connection', (socket) => {
             id: player.id,
             color: player.color,
             hostId: lobby.hostId,
+            dev: !!lobby.dev,
             players: others,
             doors: Object.fromEntries(lobby.doorStates),
         });
@@ -168,7 +174,14 @@ io.on('connection', (socket) => {
     // Join a friend's lobby by its code
     socket.on('join', (msg) => {
         const code = typeof msg?.code === 'string' ? msg.code.trim().toUpperCase() : '';
-        const lobby = lobbies.get(code);
+        let lobby = lobbies.get(code);
+        if (!lobby && DEV_ENABLED && code === DEV_CODE) {
+            // first one in starts the development lobby (no husks) and hosts it
+            leaveLobby();
+            lobby = { code, players: new Map(), hostId: player.id, doorStates: new Map(), dev: true };
+            lobbies.set(code, lobby);
+            console.log('Development lobby started');
+        }
         if (!lobby) {
             socket.emit('joinError', { reason: `No game with the code "${code}".` });
             return;
@@ -205,7 +218,8 @@ io.on('connection', (socket) => {
         s.dead = !!msg.dead;
     });
 
-    // Shared world: the host runs the husks, nests and evac, everyone else sends it what they did (shots that hit, pickups taken...). The server just passes these along:
+    // Shared world: the host runs the husks, nests and evac, everyone else sends it what
+    // they did (shots that hit, pickups taken...). The server just passes these along:
     //   to: 'all'   everyone else in the lobby
     //   to: 'host'  only the host
     //   to: 7       only player 7
@@ -223,13 +237,13 @@ io.on('connection', (socket) => {
     });
 
     socket.on('shot', (msg) => {
-        // Cosmetic only for now: lets other players see other player's tracer
+        // Cosmetic only for now: lets other players see your tracer
         if (!msg || !player.lobby) return;
         socket.to(player.lobby.code).emit('shot', { id: player.id, from: msg.from, to: msg.to });
     });
 
     socket.on('door', (msg) => {
-        // Only keep fields expected, with sensible values
+        // Only keep fields we expect, with sensible values
         if (!msg || !player.lobby || !msg.state) return;
         const id = msg.id;
         if (!Number.isInteger(id) || id < 0 || id >= MAX_DOORS) return;
@@ -249,7 +263,6 @@ io.on('connection', (socket) => {
 
 //------------------------------------------------
 // Send everyone's position to their own lobby 20 times a second (a "tick")
-// Batching like this is much cheaper than forwarding every single message
 const TICK_RATE = 20;
 setInterval(() => {
     for (const lobby of lobbies.values()) {

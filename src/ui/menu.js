@@ -43,6 +43,7 @@ const lobbyStatusEl = document.getElementById('lobby-status');
 const codeInput = document.getElementById('code-input');
 let lastLobbyCode = null;
 let wasHost = true; // solo counts as hosting your own game
+let wasDev = false; // were we in the development lobby (no husks)?
 
 export function setLobbyStatus(text) {
     lobbyStatusEl.textContent = text;
@@ -55,7 +56,7 @@ export function updateLobbyUI() {
     if (info) {
         lobbyCodeEl.textContent = info.code;
         lobbyRoleEl.textContent = info.isHost ? '(you host)' : '';
-        playersEl.textContent = `Lobby ${info.code} · ${info.players} survivor${info.players === 1 ? '' : 's'}${info.isHost ? ' · host' : ''}`;
+        playersEl.textContent = `Lobby ${info.code} · ${info.players} survivor${info.players === 1 ? '' : 's'}${info.isHost ? ' · host' : ''}${info.dev ? ' · DEV (no husks)' : ''}`;
     } else {
         playersEl.textContent = 'Playing solo';
     }
@@ -100,7 +101,12 @@ document.getElementById('leave-btn').addEventListener('click', () => {
 export function onLobbyChange(info, ev) {
     if (ev.joined) {
         const rejoined = info.code === lastLobbyCode;
-        if (info.isHost && !rejoined && !wasHost) {
+        if (info.dev && !rejoined) {
+            // development lobby: a fresh run with no husks, then match any doors already changed
+            resetGame();
+            for (const [id, state] of Object.entries(ev.doors)) applyDoorState(Number(id), state);
+            showMessage('Development lobby: no husks will spawn.', 4);
+        } else if (info.isHost && !rejoined && !wasHost) {
             // we were copying another lobby's world: start fresh in our own
             resetGame();
         } else if (info.isHost && !rejoined) {
@@ -124,10 +130,12 @@ export function onLobbyChange(info, ev) {
     if (!info) {
         lastLobbyCode = null;
         // we were copying someone else's world: start our own solo run
-        if (!wasHost) resetGame();
+        // (or leaving the development lobby: bring the husks back)
+        if (!wasHost || wasDev) resetGame();
         if (ev.error) showMessage(`Lost the game: ${ev.error} Playing solo.`, 5);
     }
     wasHost = !info || info.isHost;
+    wasDev = !!info && info.dev;
     updateLobbyUI();
     updateRestartButton();
 }

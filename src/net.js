@@ -1,4 +1,3 @@
-
 // Last Signal networking (client side)
 // ------------------------------------------------
 // Connects to the multiplayer server, hosts or joins a lobby by its code, sends our
@@ -14,7 +13,7 @@ const HOSTED_SERVER_URL = '';
 function pickServerUrl() {
     if (location.hostname.endsWith('github.io')) return HOSTED_SERVER_URL || null;
     if (location.protocol === 'file:') return null;
-    return location.origin; // the server that provides the page
+    return location.origin; // the server that gave us this page
 }
 
 const SEND_RATE = 15; // how many times per second to send position updates to the server
@@ -55,7 +54,7 @@ function isGray(r, g, b) {
     return saturation < 0.12 && max > 40 && max < 235;
 }
 
-// Is this texture mostly hoodie? at least half of its visible pixels are gray on the model
+// Is this texture mostly hoodie? (at least half of its visible pixels are gray)
 function isHoodieTexture(image) {
     const data = readPixels(image);
     let gray = 0;
@@ -252,7 +251,7 @@ function listen() {
     socket.on('joined', (msg) => {
         myId = msg.id;
         clearRemotes();
-        lobby = { code: msg.code, hostId: msg.hostId };
+        lobby = { code: msg.code, hostId: msg.hostId, dev: !!msg.dev };
         onMyColor(PLAYER_COLORS[msg.color % PLAYER_COLORS.length]);
         // main.js starts a fresh run, then copies the doors other players already changed
         onLobby(lobbyInfo(), { joined: true, doors: msg.doors || {} });
@@ -326,7 +325,12 @@ function clearRemotes() {
 
 function lobbyInfo() {
     if (!lobby) return null;
-    return { code: lobby.code, isHost: lobby.hostId === myId, players: remotes.size + 1 };
+    return { code: lobby.code, isHost: lobby.hostId === myId, players: remotes.size + 1, dev: lobby.dev };
+}
+
+// Are we in the development lobby? (no husks spawn there)
+export function isDevLobby() {
+    return !!lobby && lobby.dev;
 }
 
 //------------------------------------------------
