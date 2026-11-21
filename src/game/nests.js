@@ -3,10 +3,9 @@
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { models, spawnModel } from '../core/models.js';
-import { game } from '../core/state.js';
 import { HUSK_TUNING, alertHusks, createHusk, husks } from './husks.js';
-import { spawnPickup } from './pickups.js';
-import { playerBody } from './player.js';
+import { sendWorld } from '../net.js';
+import { dropLoot, giveScore, nearestPlayerDist, runsWorld } from './coop.js';
 import { showMessage } from '../ui/hud.js';
 import { part } from '../world/builders.js';
 
@@ -55,7 +54,8 @@ export function spawnNest(x, z) {
     g.position.set(x, 0, z);
     scene.add(g);
  
-    const nest = { group: g, pod, light, x, z, hp: 12, spawnTimer: 3, dead: false, baseScale: pod.scale.x };
+    // id: nests are made in the same order in every player's game, so their place in the list matches
+    const nest = { id: nests.length, group: g, pod, light, x, z, hp: 12, spawnTimer: 3, dead: false, baseScale: pod.scale.x };
     g.userData.nest = nest;
     nests.push(nest);
 }
@@ -67,8 +67,11 @@ export function updateNests(dt, time) {
         // slow breathing pulse
         n.pod.scale.setScalar(n.baseScale * (1 + Math.sin(time * 3) * 0.06));
  
-        // only active while the player is nearby
-        const dist = Math.hypot(playerBody.position.x - n.x, playerBody.position.z - n.z);
+        // only the host's nests spawn husks (everyone sees them through the host's updates)
+        if (!runsWorld()) continue;
+
+        // only active while a player is nearby
+        const dist = nearestPlayerDist(n.x, n.z);
         if (dist > HUSK_TUNING.nestRange) continue;
  
         n.spawnTimer -= dt;
@@ -87,22 +90,34 @@ export function updateNests(dt, time) {
     }
 }
  
-export function damageNest(n, amount) {
+// by: the teammate who hit it (null if it was you)
+export function damageNest(n, amount, by = null) {
     if (n.dead) return;
-    n.hp -= amount;
     // flash the light red (works for the model and the egg)
     n.light.color.setHex(0xff3030);
     setTimeout(() => n.light.color.setHex(NEST_GLOW), 100);
-    if (n.hp <= 0) destroyNest(n);
+    if (!runsWorld()) {
+        sendWorld('nestHit', { id: n.id, amount }, 'host'); // the host keeps track of its health
+        return;
+    }
+    n.hp -= amount;
+    if (n.hp <= 0) destroyNest(n, by);
 }
  
-function destroyNest(n) {
+// Host only: the nest dies, loot drops, and everyone else is told
+function destroyNest(n, by) {
+    removeNest(n);
+    giveScore(by, 250);
+    dropLoot('ammo', n.x + 1, n.z);
+    dropLoot('medkit', n.x - 1, n.z);
+    alertHusks(n.x, n.z, 25);
+    sendWorld('nestDown', { id: n.id });
+}
+
+// Take a destroyed nest out of the world. quiet: no message (catching up after joining)
+export function removeNest(n, quiet = false) {
     n.dead = true;
     scene.remove(n.group);
-    game.score += 250;
-    spawnPickup('ammo', n.x + 1, n.z, { temporary: true });
-    spawnPickup('medkit', n.x - 1, n.z, { temporary: true });
-    alertHusks(n.x, n.z, 25);
     const left = nests.filter((other) => !other.dead).length;
-    showMessage(`Bloom nest destroyed! (${nests.length - left}/${nests.length})`);
+    if (!quiet) showMessage(`Bloom nest destroyed! (${nests.length - left}/${nests.length})`);
 }

@@ -36,12 +36,20 @@ const MODEL_FILES = {
     jail_bed: 'models/jail_bed.gltf',
     shelves_tall: 'models/shelves_tall.gltf',
     shelves_short: 'models/shelves_short.gltf',
+    church_pew: 'models/church_pew.gltf',
+    altar: 'models/altar.gltf',
+    couch: 'models/three_couch.gltf',
+    washer_dryer: 'models/washer_dryer_set.gltf',
+    gas_pump: 'models/gas_pump.gltf',
+    fire_hydrant: 'models/fire_hydrant.gltf',
+    mailbox: 'models/mailbox.gltf',
+    park_bench: 'models/park_bench.gltf',
 };
 
 // Buildings that are still built in code. To be eventually replaced by blockbench models. Until then, placeholder buildings created with code.
 // Two-story buildings (police, apartment, fire, school) to stay in code for now: husks find the stairs using data the code version sets up.
 const BUILDING_MODELS = {
-    chapel: null,
+    chapel: 'models/chapel.gltf',
     diner: null,
     farmhouse: null,
     gasStation: null,

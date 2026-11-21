@@ -2,10 +2,11 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { othersOnline, sendDoor } from '../net.js';
+import { sendDoor } from '../net.js';
 import { camera, scene, world } from '../core/engine.js';
 import { spawnImpact } from '../game/effects.js';
 import { husks } from '../game/husks.js';
+import { runsWorld } from '../game/coop.js';
 import { playerBody } from '../game/player.js';
 import { showMessage } from '../ui/hud.js';
 import { mergeGroup, obstacles, part } from './builders.js';
@@ -291,8 +292,8 @@ export function updateDoors(dt, time) {
     for (const door of doors) {
         if (!door.leaf) continue;
 
-        // Husks chasing someone pound on closed doors until they give way
-        if (door.kind === 'closed' && !door.open) {
+        // Husks chasing someone pound on closed doors until they give way (in the host's game)
+        if (door.kind === 'closed' && !door.open && runsWorld()) {
             let pounding = 0;
             for (const h of husks) {
                 if (h.dead || !['chase', 'windup', 'lunge'].includes(h.mode)) continue;
@@ -324,11 +325,9 @@ export function updateDoors(dt, time) {
     }
 }
 
-// R: put every door back how it started (only when playing solo, so restarting
-// doesn't lock doors your teammates already opened)
+// Restarting: put every door back how it started (in a lobby everyone restarts together)
 export function resetDoors() {
     keyRing.clear();
-    if (othersOnline()) return;
     for (const door of doors) {
         door.kind = door.startKind;
         door.open = false;

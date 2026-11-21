@@ -3,12 +3,13 @@
 import { camera, scene, world } from '../core/engine.js';
 import { game } from '../core/state.js';
 import { blastLight, effects, fx } from './effects.js';
+import { resetCoop } from './coop.js';
 import { husks } from './husks.js';
 import { closeNote, secrets } from './interact.js';
 import { nests } from './nests.js';
-import { pickups } from './pickups.js';
+import { pickups, resetPickupIds } from './pickups.js';
 import { EYE_HEIGHT, SPAWN, hurtEl, knockback, playerBody } from './player.js';
-import { props } from './props.js';
+import { props, resetPropIds } from './props.js';
 import { spawnEntities } from './spawns.js';
 import { equip, owned } from './weapons.js';
 import { messageEl, overlayText, overlayTitle } from '../ui/elements.js';
@@ -49,6 +50,9 @@ function clearEntities() {
 
 export function resetGame() {
     clearEntities();
+    resetPickupIds();
+    resetPropIds();
+    resetCoop();
     spawnEntities();
 
     for (const s of secrets) s.found = false;
@@ -84,6 +88,7 @@ export function resetGame() {
     chopper.visible = false;
 
     game.gameOver = false;
+    game.dead = false;
     messageEl.textContent = '';
     overlayTitle.textContent = 'LAST SIGNAL';
     overlayText.textContent = 'Click to Start';

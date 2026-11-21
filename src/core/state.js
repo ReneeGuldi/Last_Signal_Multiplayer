@@ -11,6 +11,7 @@ export const game = {
     evacTimer: 0, // from src/game/tower.js
     towerHintShown: false, // from src/game/tower.js
     gameOver: false,
+    dead: false, // multiplayer: you died, but your team is still playing (respawn to rejoin)
     ready: false, // true once models finish loading
     hazardSlow: 1, // from src/game/player.js
     secretsFound: 0, // from src/game/interact.js

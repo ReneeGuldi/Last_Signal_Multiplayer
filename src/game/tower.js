@@ -1,6 +1,8 @@
 // tower.js: The radio tower, evac countdown, landing zone waves, and winning.
 
+import { sendWorld } from '../net.js';
 import { game } from '../core/state.js';
+import { runsWorld } from './coop.js';
 import { HUSK_TUNING, createHusk, husks } from './husks.js';
 import { playerBody } from './player.js';
 import { overlayText, overlayTitle } from '../ui/elements.js';
@@ -16,19 +18,45 @@ const EVAC_TIME = 60;
 //------------------------------------------------
 // Radio Tower & Win Condition
 // towerState: 'dead' -> 'broadcasting' (get to the LZ) -> 'landing' (hold the LZ) -> 'done'
+// Any player can move it to the next stage; everyone else hears about it through setTowerState().
 
-export function updateTower(dt, time) {
+// Move the tower/evac to a stage. who: the teammate who did it (null for you, or when catching up)
+export function setTowerState(state, evacTimer = 0, who = null) {
+    if (!['dead', 'broadcasting', 'landing'].includes(state) || state === game.towerState) return;
+    const before = game.towerState;
+    game.towerState = state;
+    chopper.visible = state !== 'dead';
+    if (state === 'broadcasting' && before === 'dead') {
+        showMessage(who ? `${who} sent the signal! The chopper is inbound. Follow the road south to the landing zone!`
+            : 'Signal sent! The chopper is inbound. Follow the road south to the landing zone!', 5);
+    }
+    if (state === 'landing') {
+        game.evacTimer = evacTimer || LAND_TIME;
+        waveTimer = 2;
+        if (before !== 'landing') {
+            showMessage(who ? `${who} reached the landing zone! Hold it until the chopper touches down!`
+                : 'Hold the landing zone until the chopper touches down!', 4);
+        }
+    }
+}
+
+// We moved it ourselves: change it here and tell everyone
+function advanceTower(state) {
+    setTowerState(state, LAND_TIME);
+    sendWorld('tower', { state, evacTimer: game.evacTimer });
+}
+
+// playing: false while you're paused or dead (the countdown and waves still run)
+export function updateTower(dt, time, playing = true) {
     const px = playerBody.position.x;
     const pz = playerBody.position.z;
-    const distToTower = Math.hypot(px - TOWER_POS.x, pz - TOWER_POS.z);
-    const inLZ = pz < -122 && Math.abs(px - LZ_POS.x) < 16;
+    const distToTower = playing ? Math.hypot(px - TOWER_POS.x, pz - TOWER_POS.z) : Infinity;
+    const inLZ = playing && pz < -122 && Math.abs(px - LZ_POS.x) < 16;
 
     if (game.towerState === 'dead') {
         if (distToTower < 6) {
-            if (game.partsFound === 3) {
-                game.towerState = 'broadcasting';
-                chopper.visible = true;
-                showMessage('Signal sent! The chopper is inbound. Follow the road south to the landing zone!', 5);
+            if (game.partsFound >= 3) {
+                advanceTower('broadcasting');
             } else if (!game.towerHintShown) {
                 game.towerHintShown = true;
                 showMessage(`The tower is dead. Find the radio parts (${game.partsFound}/3).`, 3);
@@ -55,14 +83,9 @@ export function updateTower(dt, time) {
         chopper.position.set(LZ_POS.x + Math.cos(angle) * 20, 45, LZ_POS.z + Math.sin(angle) * 20);
         chopper.rotation.y = -angle;
 
-        if (inLZ) {
-            game.towerState = 'landing';
-            game.evacTimer = LAND_TIME;
-            waveTimer = 2;
-            showMessage('Hold the landing zone until the chopper touches down!', 4);
-        }
+        if (inLZ) advanceTower('landing');
     } else if (game.towerState === 'landing') {
-        game.evacTimer -= dt;
+        game.evacTimer = Math.max(0, game.evacTimer - dt);
         const progress = 1 - game.evacTimer / LAND_TIME; // 0 -> 1
 
         // descend straight onto the helipad
@@ -72,7 +95,7 @@ export function updateTower(dt, time) {
         // waves get faster and nastier as the chopper gets closer
         waveTimer -= dt;
         const alive = husks.filter((h) => !h.dead).length;
-        if (waveTimer <= 0 && alive < HUSK_TUNING.waveMax) {
+        if (runsWorld() && waveTimer <= 0 && alive < HUSK_TUNING.waveMax) {
             const { waveSlowest: slow, waveFastest: fast } = HUSK_TUNING;
             waveTimer = slow - (slow - fast) * progress;
             const [sx, sz] = LZ_SPAWNS[Math.floor(Math.random() * LZ_SPAWNS.length)];
@@ -81,12 +104,16 @@ export function updateTower(dt, time) {
             createHusk(sx, sz, type, { alerted: true });
         }
 
-        if (game.evacTimer <= 0) win();
+        // the host decides when it's over, so everyone wins at the same moment
+        if (game.evacTimer <= 0 && runsWorld()) {
+            sendWorld('win', null);
+            win();
+        }
     }
 }
 
 // Win state
-function win() {
+export function win() {
     game.towerState = 'done';
     game.gameOver = true;
     chopper.position.set(LZ_POS.x, 0, LZ_POS.z);

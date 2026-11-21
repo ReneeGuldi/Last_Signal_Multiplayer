@@ -17,6 +17,7 @@ import './src/ui/hud.js';
 import './src/game/player.js';
 import './src/ui/input.js';
 import './src/ui/menu.js';
+import './src/game/coop.js';
 import './src/game/effects.js';
 import './src/game/husks.js';
 import './src/game/interact.js';
@@ -38,10 +39,11 @@ import './src/world/outskirts.js';
 import './src/world/streets.js';
 import './src/world/world.js';
 import * as THREE from 'three';
-import { initNetwork, multiplayerAvailable, sendState, updateRemotePlayers } from './src/net.js';
+import { inLobby, initNetwork, multiplayerAvailable, sendState, updateRemotePlayers } from './src/net.js';
 import { camera, renderer, scene, sun, world } from './src/core/engine.js';
 import { loadModels, models } from './src/core/models.js';
 import { game } from './src/core/state.js';
+import { onWorldMessage, shareHusks, syncNewPlayer } from './src/game/coop.js';
 import { spawnTracer } from './src/game/effects.js';
 import { updateHusks } from './src/game/husks.js';
 import { updateInteraction } from './src/game/interact.js';
@@ -49,6 +51,7 @@ import { updateNests } from './src/game/nests.js';
 import { updatePickups } from './src/game/pickups.js';
 import { EYE_HEIGHT, SPAWN, playerBody, updatePlayer } from './src/game/player.js';
 import { props } from './src/game/props.js';
+import { resetGame } from './src/game/reset.js';
 import { spawnEntities } from './src/game/spawns.js';
 import { updateTower } from './src/game/tower.js';
 import { initWeapons, updateEffects } from './src/game/weapons.js';
@@ -72,27 +75,38 @@ function animate() {
     const dt = Math.min(clock.getDelta(), 0.1);
     const time = clock.elapsedTime;
 
-    if (!game.gameOver && controls.isLocked) {
+    // playing: you're in control. worldRuns: husks, doors, the evac... keep going.
+    // Solo, pausing freezes everything. In a lobby the world never pauses (your teammates
+    // are still playing), so a paused or dead player just stands still.
+    const playing = !game.gameOver && !game.dead && controls.isLocked;
+    const worldRuns = !game.gameOver && (playing || inLobby());
+    if (playing) {
         game.meleeCooldown -= dt;
         game.weaponCooldown -= dt;
         updatePlayer(dt);
         updateHazards(dt, time);
+        updateInteraction();
+    } else if (worldRuns) {
+        playerBody.velocity.x = 0;
+        playerBody.velocity.z = 0;
+    }
+    if (worldRuns) {
         updateHusks(dt, time);
         updateNests(dt, time);
         updatePickups(dt, time);
         updateDoors(dt, time);
         updateDrawers(dt);
-        updateInteraction();
-        updateTriggers();
-        updateTower(dt, time);
+        updateTriggers(playing);
+        updateTower(dt, time, playing);
         updateEffects(dt);
         world.step(1 / 60, dt, 3);
+        shareHusks(dt); // host only: send the husks to everyone else
     }
 
     // Multiplayer: share where players are and which way they're facing, then move other players
     if (!game.gameOver) {
         camera.getWorldDirection(lookDir);
-        sendState(dt, playerBody.position, Math.atan2(-lookDir.x, -lookDir.z));
+        sendState(dt, playerBody.position, Math.atan2(-lookDir.x, -lookDir.z), game.dead);
     }
     updateRemotePlayers(dt);
 
@@ -108,11 +122,19 @@ function animate() {
 
     updateCity(time);
     updateHUD();
-    if (game.health <= 0 && !game.gameOver) {
-        game.gameOver = true;
-        controls.unlock();
-        overlayTitle.textContent = 'YOU DIED';
-        overlayText.textContent = 'The Bloom claims another. Press Enter or click Play again.';
+    if (game.health <= 0 && !game.gameOver && !game.dead) {
+        if (inLobby()) {
+            // your team keeps going: respawn at the farm when you're ready
+            game.dead = true;
+            controls.unlock();
+            overlayTitle.textContent = 'YOU DIED';
+            overlayText.textContent = 'Your team fights on. Press Enter or click Respawn to get back up at the farm.';
+        } else {
+            game.gameOver = true;
+            controls.unlock();
+            overlayTitle.textContent = 'YOU DIED';
+            overlayText.textContent = 'The Bloom claims another. Press Enter or click Play again.';
+        }
         updateRestartButton();
     }
 
@@ -149,6 +171,8 @@ try {
             spawnTracer(new THREE.Vector3(to.x, to.y, to.z), new THREE.Vector3(from.x, from.y, from.z));
         },
         remoteDoorCallback: applyDoorState,
+        worldCallback: (kind, data, from) => onWorldMessage(kind, data, from, resetGame),
+        playerJoinCallback: syncNewPlayer,
     });
     if (!multiplayerAvailable()) {
         document.getElementById('lobby-menu').hidden = true;

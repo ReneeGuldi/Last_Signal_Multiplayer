@@ -1,6 +1,7 @@
 // landmarks.js: The original landmarks: gas station, radio tower, collapsed house, school bus.
 
 import * as THREE from 'three';
+import { placeProp } from './blockbench.js';
 import { addStaticCollider, finishBuilding, part } from './builders.js';
 
 // GAS STATION BUILD
@@ -51,8 +52,13 @@ export function buildGasStation(x, z) {
     part(g, 1.4, 0.3, 0.1, 1.5, 3.4, 4.02, SIGN);
     part(g, 2.5, 0.22, 0.16, -0.2, 5.0, -3.95, RUST, 0, 0, 0.03);
 
-    // Fuel pumps: blocky bodies and bent-looking nozzles
+    // Fuel pumps: the Blockbench pump if it's loaded, otherwise blocky bodies and bent-looking nozzles
+    let pumpModels = false;
     for (const px of [-1.7, 2.3]) {
+        if (placeProp('gas_pump', x + px, z + 7.0, 0)) {
+            pumpModels = true;
+            continue;
+        }
         part(g, 0.8, 1.35, 0.65, px, 0.8, 7.0, RUST);
         part(g, 0.65, 0.38, 0.08, px, 1.05, 7.36, DARK);
         part(g, 0.3, 0.18, 0.08, px, 1.55, 7.36, SIGN);
@@ -73,8 +79,10 @@ export function buildGasStation(x, z) {
     addStaticCollider(0.35, 3.8, 7.3, x + 3.8, z);
     addStaticCollider(2, 3.8, 0.35, x - 3, z + 3.8);
     addStaticCollider(2, 3.8, 0.35, x + 3, z + 3.8);
-    addStaticCollider(0.8, 1.35, 0.65, x - 1.7, z + 7);
-    addStaticCollider(0.8, 1.35, 0.65, x + 2.3, z + 7);
+    if (!pumpModels) { // the pump models bring their own colliders
+        addStaticCollider(0.8, 1.35, 0.65, x - 1.7, z + 7);
+        addStaticCollider(0.8, 1.35, 0.65, x + 2.3, z + 7);
+    }
     addStaticCollider(0.22, 3.9, 0.22, x - 3.2, z + 5.7);
     addStaticCollider(0.22, 3.5, 0.22, x + 5.2, z + 5.7);
     addStaticCollider(0.22, 3.9, 0.22, x - 3.2, z + 8.3);

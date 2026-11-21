@@ -86,7 +86,7 @@ export function updatePlayer(dt) {
 export const hurtEl = document.getElementById('hurt');
 let hurtTimer = null;
 export function hurtPlayer(amount, fromPos = null, push = 0) {
-    if (game.gameOver) return;
+    if (game.gameOver || game.dead) return;
     game.health -= amount;
 
     hurtEl.style.opacity = Math.min(0.8, 0.25 + amount / 40);
@@ -101,4 +101,17 @@ export function hurtPlayer(amount, fromPos = null, push = 0) {
         knockback.z += (dz / d) * push;
         if (push > 10) playerBody.velocity.y = 5; // big hits pop the player up a bit
     }
+}
+
+// Multiplayer: after dying, get back up at the farm. The rest of the world stays as it is.
+export function respawnPlayer() {
+    playerBody.position.set(SPAWN.x, 2, SPAWN.z);
+    playerBody.velocity.set(0, 0, 0);
+    knockback.set(0, 0, 0);
+    camera.position.set(SPAWN.x, 2 + EYE_HEIGHT, SPAWN.z);
+    camera.rotation.set(0, SPAWN.yaw, 0);
+    hurtEl.style.opacity = 0;
+    game.health = 100;
+    game.ammo = Math.max(game.ammo, 15); // enough to fight your way back
+    game.dead = false;
 }

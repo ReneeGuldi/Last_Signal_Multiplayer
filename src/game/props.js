@@ -10,6 +10,11 @@ import { buildSchoolBus } from '../world/landmarks.js';
 //------------------------------------------------
 // Physics Props
 export const props = [];
+// Props are made in the same order in every player's game, so numbering them in order -- lets everyone agree which barrel blew up
+let nextPropId = 0;
+export function resetPropIds() {
+    nextPropId = 0;
+}
 export function spawnCrate(x, z) {
     const mesh = spawnModel('crate', 1, -0.5);
     const body = new CANNON.Body({
@@ -20,7 +25,7 @@ export function spawnCrate(x, z) {
     body.linearDamping = 0.4;
     body.angularDamping = 0.6;
     world.addBody(body);
-    const prop = { mesh, body };
+    const prop = { id: nextPropId++, mesh, body };
     mesh.userData.prop = prop;
     props.push(prop);
 }
@@ -35,7 +40,7 @@ export function spawnBarrel(x, z) {
     body.linearDamping = 0.4;
     body.angularDamping = 0.6;
     world.addBody(body);
-    const prop = { mesh, body, explosive: true };
+    const prop = { id: nextPropId++, mesh, body, explosive: true };
     mesh.userData.prop = prop;
     props.push(prop);
 }
@@ -67,7 +72,7 @@ export function spawnBus(x, z) {
     body.angularDamping = 0.6;
     world.addBody(body);
 
-    const prop = { mesh: holder, body, dormant: true, blastScale: 8};
+    const prop = { id: nextPropId++, mesh: holder, body, dormant: true, blastScale: 8 };
     holder.userData.prop = prop;
     props.push(prop);
 }

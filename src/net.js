@@ -14,7 +14,7 @@ const HOSTED_SERVER_URL = '';
 function pickServerUrl() {
     if (location.hostname.endsWith('github.io')) return HOSTED_SERVER_URL || null;
     if (location.protocol === 'file:') return null;
-    return location.origin; // the server that gave us this page
+    return location.origin; // the server that provides the page
 }
 
 const SEND_RATE = 15; // how many times per second to send position updates to the server
@@ -29,6 +29,8 @@ let onMyColor = () => {};
 let onRemoteShot = () => {};
 let onRemoteDoor = () => {};
 let onLobby = () => {};
+let onWorld = () => {};
+let onPlayerJoin = () => {};
 
 // The lobby we're in: { code, hostId } or null when playing solo
 let lobby = null;
@@ -53,7 +55,7 @@ function isGray(r, g, b) {
     return saturation < 0.12 && max > 40 && max < 235;
 }
 
-// Is this texture mostly hoodie? (at least half of its visible pixels are gray)
+// Is this texture mostly hoodie? at least half of its visible pixels are gray on the model
 function isHoodieTexture(image) {
     const data = readPixels(image);
     let gray = 0;
@@ -223,6 +225,7 @@ function addRemote(p) {
         walkPhase: 0,
         swing: 0,
         profile: { name: p.name, model: p.model, color: p.color },
+        dead: !!p.dead,
     };
     buildModel(r);
     remotes.set(p.id, r);
@@ -284,7 +287,10 @@ function listen() {
         onLobby(lobbyInfo(), { hostChanged: true });
     });
 
-    socket.on('join', addRemote);
+    socket.on('join', (p) => {
+        addRemote(p);
+        onPlayerJoin(p.id);
+    });
 
     // someone changed their name or character
     socket.on('profile', (msg) => {
@@ -304,11 +310,13 @@ function listen() {
             const r = remotes.get(p.id);
             r.target.set(p.x, p.y, p.z);
             r.targetRotY = p.rotY;
+            r.dead = !!p.dead;
         }
     });
 
     socket.on('shot', (msg) => onRemoteShot(msg.from, msg.to));
     socket.on('door', (msg) => onRemoteDoor(msg.id, msg.state));
+    socket.on('world', (msg) => onWorld(msg.kind, msg.data, msg.from));
 
 }
 
@@ -332,6 +340,8 @@ export function initNetwork(gameScene, options = {}) {
     if (options.remoteShotCallback) onRemoteShot = options.remoteShotCallback;
     if (options.remoteDoorCallback) onRemoteDoor = options.remoteDoorCallback;
     if (options.lobbyCallback) onLobby = options.lobbyCallback;
+    if (options.worldCallback) onWorld = options.worldCallback;
+    if (options.playerJoinCallback) onPlayerJoin = options.playerJoinCallback;
 
     const url = pickServerUrl();
     if (!url) {
@@ -404,7 +414,7 @@ export function sendProfile(profile) {
 }
 
 // Call every frame with the player's physics position and the camera's facing
-export function sendState(dt, position, rotY) {
+export function sendState(dt, position, rotY, dead = false) {
     if (!isOpen() || !lobby) return;
     sendTimer -= dt;
     if (sendTimer > 0) return;
@@ -414,6 +424,7 @@ export function sendState(dt, position, rotY) {
         y: +position.y.toFixed(2),
         z: +position.z.toFixed(2),
         rotY: +rotY.toFixed(3),
+        dead,
     });
 }
 
@@ -431,6 +442,27 @@ export function sendDoor(id, state) {
     socket.emit('door', { id, state });
 }
 
+// Shared world messages (see src/game/coop.js). to: 'all', 'host', or a player's id
+export function sendWorld(kind, data, to = 'all') {
+    if (!isOpen() || !lobby) return;
+    socket.emit('world', { kind, data, to });
+}
+
+// Are we in a lobby? (false when playing solo)
+export function inLobby() {
+    return !!lobby && isOpen();
+}
+
+// Where everyone else is: [{ id, x, y, z, dead }] (y is the middle of their body, like ours)
+export function playerList() {
+    return [...remotes.entries()].map(([id, r]) => ({ id, x: r.target.x, y: r.target.y, z: r.target.z, dead: r.dead }));
+}
+
+export function playerName(id) {
+    const r = remotes.get(id);
+    return r ? r.profile.name : 'Someone';
+}
+
 // Is anyone else playing with us right now?
 export function othersOnline() {
     return remotes.size > 0;
@@ -441,6 +473,7 @@ export function updateRemotePlayers(dt) {
     if (dt <= 0) return;
     const t = Math.min(1, dt * 12);
     for (const r of remotes.values()) {
+        r.root.visible = !r.dead; // downed players disappear until they respawn
         r.root.position.lerp(r.target, t);
 
         // turn the shortest way around

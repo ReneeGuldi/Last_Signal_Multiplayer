@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { sizedModel, spawnModel } from '../core/models.js';
 import { game } from '../core/state.js';
+import { shareTake } from './coop.js';
 import { WEAPONS, giveWeapon } from './weapons.js';
 import { showMessage } from '../ui/hud.js';
 import { KEY_NAMES, keyRing } from '../world/doors.js';
@@ -28,7 +29,7 @@ export const PICKUP_TYPES = {
     fireKey:     { key: 'fire', color: 0xc84a3a, label: 'the Fire station key' },
 };
 
-// A key built from boxes, with a colored tag so you can tell them apart
+// A key built from boxes, with a colored tag so players can tell them apart
 function keyModel(color) {
     const g = new THREE.Group();
     const BRASS = new THREE.MeshStandardMaterial({ color: 0xc8a850, emissive: 0x4a3a10, metalness: 0.6, roughness: 0.4 });
@@ -53,10 +54,16 @@ function keyModel(color) {
 }
 
 export const pickups = [];
+// Every pickup has an id so all players agree which one was taken. Pickups placed at the
+// start of a run are numbered in order (p0, p1...); loot from husks gets a random id from the host.
+let nextPickupId = 0;
+export function resetPickupIds() {
+    nextPickupId = 0;
+}
 
 // temporary: loot dropped by husks/nests. Blinks and disappears after 25s, never respawns
 // y: height of the floor it sits on (for pickups upstairs or on tables)
-export function spawnPickup(type, x, z, { temporary = false, y = 0 } = {}) {
+export function spawnPickup(type, x, z, { temporary = false, y = 0, id = null } = {}) {
     const config = PICKUP_TYPES[type];
     let mesh;
     if (config.key) {
@@ -85,7 +92,7 @@ export function spawnPickup(type, x, z, { temporary = false, y = 0 } = {}) {
         mesh.add(glow);
     }
 
-    const p = { type, mesh, baseY: y, collected: false, respawnTimer: 0, temporary, life: 25 };
+    const p = { id: id ?? 'p' + nextPickupId++, type, mesh, baseY: y, collected: false, respawnTimer: 0, temporary, life: 25 };
     pickups.push(p);
     return p;
 }
@@ -99,15 +106,9 @@ export function collect(p) {
         return;
     }
 
-    p.collected = true;
-    if (config.respawn && !p.temporary) {
-        // hide it and start the respawn countdown
-        p.mesh.visible = false;
-        p.respawnTimer = config.respawn;
-    } else {
-        scene.remove(p.mesh);
-    }
- 
+    removePickup(p);
+    shareTake(p); // gone for your teammates too
+
     if (config.radio) {
         game.partsFound++;
         game.score += 100;
@@ -136,6 +137,34 @@ export function collect(p) {
     }
 }
 
+
+// Hide a supply until it respawns, or remove it for good
+function removePickup(p) {
+    const config = PICKUP_TYPES[p.type];
+    p.collected = true;
+    if (config.respawn && !p.temporary) {
+        // hide it and start the respawn countdown
+        p.mesh.visible = false;
+        p.respawnTimer = config.respawn;
+    } else {
+        scene.remove(p.mesh);
+    }
+}
+
+// A teammate picked this up. Radio parts count for the whole team.
+// who: their name, or null when catching up after joining (no messages then)
+export function takenByOther(p, who) {
+    if (p.collected) return;
+    const config = PICKUP_TYPES[p.type];
+    removePickup(p);
+    if (config.radio && who) {
+        game.partsFound++;
+        if (game.partsFound === 3) showMessage(`${who} found ${config.label}! All parts found: get to the radio tower.`, 5);
+        else showMessage(`${who} found ${config.label}! (${game.partsFound}/3)`, 3);
+    } else if (config.key && who) {
+        showMessage(`${who} found the ${KEY_NAMES[config.key]}.`, 3);
+    }
+}
 
 export function updatePickups(dt, time) {
     for (let i = pickups.length - 1; i >= 0; i--) {

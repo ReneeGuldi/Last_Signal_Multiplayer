@@ -1,8 +1,10 @@
 // menu.js: Start menu: name and character picker, and the lobby (host / join) panel.
 
 import { getLobby, hostGame, joinGame, leaveGame, sendProfile } from '../net.js';
+import { becomeHost } from '../game/coop.js';
 import { resetGame } from '../game/reset.js';
 import { showMessage } from './hud.js';
+import { updateRestartButton } from './input.js';
 import { applyDoorState, doors, shareDoor } from '../world/doors.js';
 
 // Name & character picker on the start screen
@@ -40,6 +42,7 @@ const lobbyRoleEl = document.getElementById('lobby-role');
 const lobbyStatusEl = document.getElementById('lobby-status');
 const codeInput = document.getElementById('code-input');
 let lastLobbyCode = null;
+let wasHost = true; // solo counts as hosting your own game
 
 export function setLobbyStatus(text) {
     lobbyStatusEl.textContent = text;
@@ -97,7 +100,10 @@ document.getElementById('leave-btn').addEventListener('click', () => {
 export function onLobbyChange(info, ev) {
     if (ev.joined) {
         const rejoined = info.code === lastLobbyCode;
-        if (info.isHost && !rejoined) {
+        if (info.isHost && !rejoined && !wasHost) {
+            // we were copying another lobby's world: start fresh in our own
+            resetGame();
+        } else if (info.isHost && !rejoined) {
             // we just started this lobby: keep our run, and share any doors we already changed
             for (const door of doors) {
                 if (door.kind !== door.startKind || door.open) shareDoor(door);
@@ -110,11 +116,18 @@ export function onLobbyChange(info, ev) {
         }
         lastLobbyCode = info.code;
     }
-    if (ev.hostChanged && info.isHost) showMessage('The host left. You are hosting the game now.', 4);
+    if (ev.hostChanged && info.isHost) {
+        becomeHost(); // the husks we were copying now take orders from our game
+        showMessage('The host left. You are hosting the game now.', 4);
+    }
     if (ev.reconnecting) showMessage('Connection lost. Reconnecting...', 4);
     if (!info) {
         lastLobbyCode = null;
+        // we were copying someone else's world: start our own solo run
+        if (!wasHost) resetGame();
         if (ev.error) showMessage(`Lost the game: ${ev.error} Playing solo.`, 5);
     }
+    wasHost = !info || info.isHost;
     updateLobbyUI();
+    updateRestartButton();
 }

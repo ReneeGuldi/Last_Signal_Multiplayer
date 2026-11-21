@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { scene, world } from '../core/engine.js';
 import { modelHeight, models } from '../core/models.js';
+import { sendWorld } from '../net.js';
 import { spawnPickup } from '../game/pickups.js';
 import { showMessage } from '../ui/hud.js';
 import { obstacles, reserve } from './builders.js';
@@ -33,7 +34,6 @@ import { KEY_NAMES, createDoor } from './doors.js';
 //    position, and the game will move it closed when the level starts.
 // 5. Export the model with File > Export > Export glTF Model into models/. Add furniture
 //    to MODEL_FILES or buildings to BUILDING_MODELS, and the game will load it automatically.
-
 
 const BLOCKBENCH_SCALE = 2.4;
 export const drawers = [];
@@ -259,14 +259,21 @@ export function stockDrawer(x, z, lootType) {
 }
 
 export function useDrawer(d) {
-    d.open = !d.open;
-    if (d.open && d.loot && !d.looted) {
+    const hadLoot = d.loot && !d.looted;
+    setDrawer(d, !d.open);
+    sendWorld('drawer', { id: drawers.indexOf(d), open: d.open }); // teammates see it slide too
+    if (d.open && hadLoot) showMessage('Found something in the drawer.', 2);
+    else if (d.open && !d.loot) showMessage('Empty.', 1.5);
+}
+
+// Open or close a drawer. The first time it opens, its loot appears on top
+// (with the same id in everyone's game, so taking it works for the whole team).
+export function setDrawer(d, open) {
+    d.open = open;
+    if (open && d.loot && !d.looted) {
         d.looted = true;
         const p = d.obj.parent.localToWorld(d.openLocal.clone());
-        spawnPickup(d.loot, p.x, p.z, { y: d.top - 0.35 });
-        showMessage('Found something in the drawer.', 2);
-    } else if (d.open && !d.loot) {
-        showMessage('Empty.', 1.5);
+        spawnPickup(d.loot, p.x, p.z, { y: d.top - 0.35, id: 'w' + drawers.indexOf(d) });
     }
 }
 

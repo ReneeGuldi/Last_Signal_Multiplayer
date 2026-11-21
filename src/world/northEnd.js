@@ -70,12 +70,18 @@ export function buildLaundromat(x, z) {
     buildShop(x, z, {
         w: 10, d: 9, flip: true, storefront: true, sign: 0x3a6a9a, wall: 0xb8b0a0, floor: 0x8a8a84,
         furnish(b) {
-            for (let k = 0; k < 6; k++) {
-                const mx = -3.8 + k * 1.3;
-                b.solid(1.1, 1.0, 0.9, mx, 0.5, -3.8, 0xd8d8d0);                 // washer
-                b.box(0.6, 0.6, 0.04, mx, 0.55, -3.33, k % 3 === 1 ? 0x1a1a1a : 0x4a5a6a); // its round-ish door
-                b.solid(1.1, 1.0, 0.9, mx, 1.55, -3.8, 0xc8c8c0);                // dryer stacked on top
-                b.box(0.5, 0.5, 0.04, mx, 1.6, -3.33, 0x3a3a3a);
+            // Blockbench washer/dryer sets along the back wall, or code-built ones if the model isn't loaded
+            const sets = [-3.3, -1.1, 1.1, 3.3];
+            if (b.prop('washer_dryer', sets[0], -3.9, Math.PI)) {
+                for (const mx of sets.slice(1)) b.prop('washer_dryer', mx, -3.9, Math.PI);
+            } else {
+                for (let k = 0; k < 6; k++) {
+                    const mx = -3.8 + k * 1.3;
+                    b.solid(1.1, 1.0, 0.9, mx, 0.5, -3.8, 0xd8d8d0);                 // washer
+                    b.box(0.6, 0.6, 0.04, mx, 0.55, -3.33, k % 3 === 1 ? 0x1a1a1a : 0x4a5a6a); // its round-ish door
+                    b.solid(1.1, 1.0, 0.9, mx, 1.55, -3.8, 0xc8c8c0);                // dryer stacked on top
+                    b.box(0.5, 0.5, 0.04, mx, 1.6, -3.33, 0x3a3a3a);
+                }
             }
             fTable(b, -1.5, 0, 0, 2.4, 0.9, 0xc8c0b0);
             fTable(b, 2, 0, 0, 2.4, 0.9, 0xc8c0b0);

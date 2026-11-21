@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
+import { placeProp } from './blockbench.js';
 import { addStaticCollider, mergeGroup, obstacles, part, reserve } from './builders.js';
 import { buildCar } from './evacRoute.js';
 import { ROADS, ROAD_W, WALK_W } from './layout.js';
@@ -226,6 +227,17 @@ export function buildStreetDetails() {
     buildCar(78, -38, 0.1, 0x6a5a4a);           // warehouse loading zone
     buildCar(-70, 2.4, 0, 0x7a6a5a);            // suburbs
     buildCar(-93, -2, 0.25, 0x4a4a5a, true);
+
+    // Benches, hydrants and mailboxes along the sidewalks (Blockbench models; skipped if not loaded)
+    [[-20, 1], [6, -1], [40, 1]].forEach(([bz, side]) => {
+        placeProp('park_bench', side * edge, bz, -side * Math.PI / 2); // facing the road
+    });
+    [[-24, 1], [16, 1], [30, -1], [56, 1]].forEach(([hz, side]) => {
+        placeProp('fire_hydrant', side * (edge - 0.3), hz, 0);
+    });
+    [[-22, -1], [-30, 1], [24, -1], [72, 1], [88, -1]].forEach(([mx, side]) => {
+        placeProp('mailbox', mx, side * edge, side > 0 ? Math.PI : 0);
+    });
 }
  
 export function updateCity(time) {

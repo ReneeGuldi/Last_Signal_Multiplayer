@@ -3,11 +3,12 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { sendShot } from '../net.js';
+import { runsWorld, shareBoom } from './coop.js';
 import { camera, scene, world } from '../core/engine.js';
 import { models, sizedModel } from '../core/models.js';
 import { game } from '../core/state.js';
 import { GUN_REST, blastLight, effects, flashRed, gun, gunBarrel, gunBody, gunGrip, hitMarker, muzzleLight, raycaster, spawnImpact, spawnTracer, updateFx } from './effects.js';
-import { alertHusks, damageHusk, husks } from './husks.js';
+import { alertHusks, damageHusk, husks, pushHusk } from './husks.js';
 import { damageNest, nests } from './nests.js';
 import { hurtPlayer, playerBody } from './player.js';
 import { charModel, props } from './props.js';
@@ -47,14 +48,11 @@ export function shove() {
         const dir = new THREE.Vector3(dx / d, 0, dz / d);
         if (h.t.heavy) {
             // brutes barely budge, but it does interrupt a charge
-            h.stun = 0.4;
+            pushHusk(h, dir, 0.4, 0);
             flashRed(h.mesh);
         } else {
             damageHusk(h, 1, dir);
-            if (!h.dead) {
-                h.stun = 1;
-                h.body.velocity.set(dir.x * 10, 0, dir.z * 10);
-            }
+            pushHusk(h, dir, 1, 10);
         }
     }
     meleeBoards(2.6);
@@ -306,8 +304,11 @@ function swingMelee(w) {
     if (hitSomething) hitMarker();
 }
 
-function explode(p) {
+// fromNetwork: another player's barrel went off (they already told everyone)
+// by: who set it off, so they get the points for anything it kills
+export function explode(p, fromNetwork = false, by = null) {
     const center = p.body.position;
+    if (!fromNetwork) shareBoom(p);
     
     // Remove barrel from scene
     scene.remove(p.mesh);
@@ -326,26 +327,26 @@ function explode(p) {
     effects.push({ fireball, age: 0});
 
     const RADIUS = 6;
-    blastDoors(center, RADIUS);
+    if (!fromNetwork) blastDoors(center, RADIUS); // door changes get shared by whoever set it off
+
+    // Husks, nests and the barricade only take damage in the host's game (it runs them)
+    const host = runsWorld();
 
     // husks in range take 8 damage: normal husks & runners die, brutes get staggered
-    for (const h of husks) {
+    for (const h of host ? husks : []) {
         if (h.dead) continue;
         if (h.body.position.distanceTo(center) < RADIUS) {
             const away = h.body.position.vsub(center);
             away.y = 0;
             away.normalize();
-            damageHusk(h, 8, away, 1.6);
-            if (!h.dead) {
-                h.stun = 0.8;
-                h.body.velocity.set(away.x * 8, 0, away.z * 8);
-            }
+            damageHusk(h, 8, away, 1.6, by);
+            pushHusk(h, away, 0.8, 8);
         }
     }
 
     // nests caught in the blast take heavy damage
-    for (const n of nests) {
-        if (!n.dead && Math.hypot(n.x - center.x, n.z - center.z) < RADIUS) damageNest(n, 8);
+    for (const n of host ? nests : []) {
+        if (!n.dead && Math.hypot(n.x - center.x, n.z - center.z) < RADIUS) damageNest(n, 8, by);
     }
 
     // Crates get blasted, other barrels will chain-react and explode
@@ -372,18 +373,18 @@ function explode(p) {
             );
 
             if (other.explosive) {
-                setTimeout(() => { if (props.includes(other)) explode(other); }, 150);
+                setTimeout(() => { if (props.includes(other)) explode(other, fromNetwork, by); }, 150);
             }
         }
     }
 
     // blow open the barricade if the blast is close enough
-    if (game.barricade && Math.abs(center.z - game.barricade.z) < RADIUS && Math.abs(center.x) < 9) {
+    if (host && game.barricade && Math.abs(center.z - game.barricade.z) < RADIUS && Math.abs(center.x) < 9) {
         breakBarricade();
     }
 
     // everything nearby heard that
-    alertHusks(center.x, center.z, 45);
+    if (host) alertHusks(center.x, center.z, 45);
 
     // If player is standing too close, they take damage and get thrown
     const playerDist = playerBody.position.distanceTo(center);

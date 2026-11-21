@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { scene, world } from '../core/engine.js';
 import { game } from '../core/state.js';
+import { sendWorld } from '../net.js';
+import { huskTargets, runsWorld } from '../game/coop.js';
 import { spawnGroup } from '../game/husks.js';
 import { hurtPlayer, playerBody } from '../game/player.js';
 import { props, spawnCrate } from '../game/props.js';
@@ -14,6 +16,7 @@ import { addStaticCollider, finishBuilding, mergeGroup, part } from './builders.
 // Evac Route
 // After the signal goes out, the chopper lands at an LZ south of the tower.
 // A walled-in road leads there with wrecks, wire, fire, a barricade and ambushes.
+
 export const LZ_POS = new THREE.Vector3(0, 0, -138);
 export const LAND_TIME = 45; // seconds the player must hold the LZ
 export const LZ_SPAWNS = [[-13, -153], [13, -153], [-13, -124], [13, -124], [0, -153]];
@@ -213,16 +216,23 @@ export function spawnBarricade(z) {
 
 export function damageBarricade(amount) {
     if (!game.barricade) return;
+    if (!runsWorld()) {
+        sendWorld('barricadeHit', { amount }, 'host'); // the host keeps track of its health
+        return;
+    }
     game.barricade.hp -= amount;
     if (game.barricade.hp <= 0) breakBarricade();
 }
 
-export function breakBarricade() {
+// fromNetwork: the host told us it broke. quiet: catching up after joining (no debris or message)
+export function breakBarricade(fromNetwork = false, quiet = false) {
     if (!game.barricade) return;
     const { group, body, z } = game.barricade;
     scene.remove(group);
     world.removeBody(body);
     game.barricade = null;
+    if (!fromNetwork) sendWorld('barricade', null);
+    if (quiet) return;
 
     // a few crates go flying as debris
     for (let i = 0; i < 5; i++) {
@@ -233,29 +243,33 @@ export function breakBarricade() {
     }
     showMessage('The barricade is down!', 2.5);
 
-    // the noise brings out whatever was hiding behind it
+    // the noise brings out whatever was hiding behind it (spawnGroup only works for the host)
     spawnGroup([['normal', -3, z - 8], ['normal', 3, z - 9], ['runner', 0, z - 12], ['runner', -5, z - 14]]);
 }
 
-// Ambush triggers: fire once when the player walks south past a z line on the road
+// Ambush triggers: fire once when a player walks south past a z line on the road.
+// local: only for you (messages). The others spawn husks, so the host checks every player.
 const triggers = [];
 
 export function setupTriggers() {
     triggers.length = 0;
     triggers.push(
         { z: -70, run: () => spawnGroup([['runner', -3, -86], ['runner', 3, -88], ['runner', 0, -90]]) },
-        { z: -90, run: () => { if (game.barricade) showMessage('A barricade blocks the road. Those barrels look useful...', 4); } },
+        { z: -90, local: true, run: () => { if (game.barricade) showMessage('A barricade blocks the road. Those barrels look useful...', 4); } },
         { z: -101, run: () => spawnGroup([['brute', 0, -118], ['normal', 3, -119], ['normal', -2, -121]]) },
     );
     for (const t of triggers) t.fired = false;
 }
 
-export function updateTriggers() {
-    const px = playerBody.position.x;
-    const pz = playerBody.position.z;
-    if (Math.abs(px) > 8) return; // only on the road
+// playing: false while you're paused or dead (the host still checks teammates then)
+export function updateTriggers(playing = true) {
+    const me = playerBody.position;
+    const everyone = runsWorld() ? huskTargets() : [];
     for (const t of triggers) {
-        if (!t.fired && pz < t.z) {
+        if (t.fired) continue;
+        const onRoad = (p) => Math.abs(p.x) <= 8 && p.z < t.z;
+        const meHere = playing && onRoad(me);
+        if (meHere || (!t.local && everyone.some(onRoad))) {
             t.fired = true;
             t.run();
         }

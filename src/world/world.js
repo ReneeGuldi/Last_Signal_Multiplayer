@@ -1,7 +1,7 @@
 // world.js: buildStaticWorld(): builds the whole town in order. Also the lore notes.
 
 import { buildSecrets } from '../game/interact.js';
-import { building, placeModelBuilding } from './blockbench.js';
+import { building, placeModelBuilding, placeProp } from './blockbench.js';
 import { reserve } from './builders.js';
 import { buildApartment, buildHardware, buildHouseB, buildPharmacy, buildPolice, furnishOldBuildings } from './cityBuildings.js';
 import { buildFireStation, buildGrocery, buildMotel, buildSuburbHouse, buildWarehouse } from './eastSide.js';
@@ -38,7 +38,10 @@ export function buildStaticWorld() {
     building('diner', ...LAYOUT.diner, { rotY: 0 }, () => buildDiner(...LAYOUT.diner));
     building('farmhouse', ...LAYOUT.farm, { rotY: 0 }, () => buildFarm(...LAYOUT.farm));
     buildCrashedChopper(...LAYOUT.crash);
-    building('chapel', ...LAYOUT.chapel, { rotY: 0 }, () => buildChapel(...LAYOUT.chapel));
+    // The Blockbench chapel is modeled big, so it's placed at half size (scale 1.2) with its doors facing town
+    if (building('chapel', ...LAYOUT.chapel, { rotY: Math.PI, scale: 1.2, center: true }, () => buildChapel(...LAYOUT.chapel))) {
+        furnishChapel(...LAYOUT.chapel);
+    }
  
     // New city buildings, with furniture inside
     buildPolice(...LAYOUT.police);
@@ -71,4 +74,15 @@ export function buildStaticWorld() {
     buildSkeletons();
     buildSecrets();
     buildLoreNotes();
+}
+
+// Pews and the altar inside the Blockbench chapel (the code-built chapel makes its own)
+function furnishChapel(cx, cz) {
+    for (let row = 0; row < 5; row++) {
+        const pz = cz + 3.2 - row * 1.3; // rows from the doors toward the altar
+        for (const side of [-1, 1]) {
+            placeProp('church_pew', cx + side * 2.0, pz, Math.PI); // facing the altar
+        }
+    }
+    placeProp('altar', cx, cz - 4.4, 0);
 }

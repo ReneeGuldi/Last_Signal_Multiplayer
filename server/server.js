@@ -3,9 +3,8 @@
 // Does two jobs on ONE port:
 //   1. Serves the game files (index.html, style.css, main.js, src/, models/...) like GitHub Pages did
 //   2. Runs Socket.IO lobbies: each game has a join code, a host, and its own players
-//
-// Run it with:   cd server && npm install && npm start
-// Then open:     http://localhost:3000
+// Run it with: cd server && npm install && npm start
+// Then open: http://localhost:3000
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -108,8 +107,8 @@ function cleanProfile(msg, id) {
 }
 
 io.on('connection', (socket) => {
-    // our own short number for each player (socket.id is a long random string)
-    const player = { id: nextId++, socket, state: { x: 0, y: 2, z: 10, rotY: 0 }, profile: null, color: 0, lobby: null };
+    // a short number for each player (socket.id is a long random string)
+    const player = { id: nextId++, socket, state: { x: 0, y: 2, z: 10, rotY: 0, dead: false }, profile: null, color: 0, lobby: null };
     socket.emit('welcome', { id: player.id });
 
     function joinLobby(lobby, profile) {
@@ -203,16 +202,34 @@ io.on('connection', (socket) => {
         for (const key of ['x', 'y', 'z', 'rotY']) {
             if (Number.isFinite(msg[key])) s[key] = msg[key];
         }
+        s.dead = !!msg.dead;
+    });
+
+    // Shared world: the host runs the husks, nests and evac, everyone else sends it what they did (shots that hit, pickups taken...). The server just passes these along:
+    //   to: 'all'   everyone else in the lobby
+    //   to: 'host'  only the host
+    //   to: 7       only player 7
+    socket.on('world', (msg) => {
+        const lobby = player.lobby;
+        if (!msg || !lobby || typeof msg.kind !== 'string' || msg.kind.length > 20) return;
+        const out = { kind: msg.kind, data: msg.data ?? null, from: player.id };
+        if (msg.to === 'all') {
+            socket.to(lobby.code).emit('world', out);
+        } else {
+            const targetId = msg.to === 'host' ? lobby.hostId : msg.to;
+            const target = [...lobby.players.values()].find((p) => p.id === targetId);
+            if (target && target !== player) target.socket.emit('world', out);
+        }
     });
 
     socket.on('shot', (msg) => {
-        // Cosmetic only for now: lets other players see your tracer
+        // Cosmetic only for now: lets other players see other player's tracer
         if (!msg || !player.lobby) return;
         socket.to(player.lobby.code).emit('shot', { id: player.id, from: msg.from, to: msg.to });
     });
 
     socket.on('door', (msg) => {
-        // Only keep fields we expect, with sensible values
+        // Only keep fields expected, with sensible values
         if (!msg || !player.lobby || !msg.state) return;
         const id = msg.id;
         if (!Number.isInteger(id) || id < 0 || id >= MAX_DOORS) return;

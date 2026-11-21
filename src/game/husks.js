@@ -5,14 +5,17 @@ import * as CANNON from 'cannon-es';
 import { scene, world } from '../core/engine.js';
 import { modelHeight, models, spawnModel } from '../core/models.js';
 import { game } from '../core/state.js';
+import { sendWorld } from '../net.js';
+import { dropLoot, giveScore, hurtTeammate, nearestTarget, runsWorld } from './coop.js';
 import { flashRed } from './effects.js';
-import { spawnPickup } from './pickups.js';
-import { hurtPlayer, playerBody } from './player.js';
+import { hurtPlayer } from './player.js';
 import { FLOOR_H } from '../world/layout.js';
 
 //------------------------------------------------
 // Husks
 export const husks = [];
+let nextHuskId = 0; // every husk gets a number so all players agree which husk is which
+const MODES = ['idle', 'guard', 'return', 'chase', 'windup', 'lunge'];
 const HUSK_TURN = Math.PI;
 const HUSK_MODEL_SCALE = 2.4;
 
@@ -40,8 +43,11 @@ const HUSK_TYPES = {
 
 // home: if given, the husk is a guard. It shuffles around home, only notices you inside guardRadius, and walks back if you lead it too far away.
 // alerted: spawn already hunting the player (ambushes, nest spawns, evac waves)
-export function createHusk(x, z, type = 'normal', { home = null, guardRadius = 12, alerted = false, y = 0 } = {}) {
-    const base = HUSK_TYPES[type];
+// puppet: a copy of one of the host's husks (multiplayer, when you aren't the host)
+export function createHusk(x, z, type = 'normal', { home = null, guardRadius = 12, alerted = false, y = 0, puppet = false, id = null } = {}) {
+    // Only the host makes real husks. Everyone else gets puppets from the host's updates.
+    if (!puppet && !runsWorld()) return null;
+    const base = HUSK_TYPES[type] || HUSK_TYPES.normal;
     const t = { ...base, speed: base.speed * HUSK_TUNING.speed, lungeSpeed: base.lungeSpeed * HUSK_TUNING.speed };
     const radius = 0.5 * t.scale;
 
@@ -60,8 +66,11 @@ export function createHusk(x, z, type = 'normal', { home = null, guardRadius = 1
         mesh.traverse((c) => { if (c.isMesh) c.material.color.lerp(tint, 0.6); });
     }
 
+    // Puppets are "kinematic": they go exactly where the host says, and push players out of the way
+    const mass = t.heavy ? 200 : 50;
     const body = new CANNON.Body({
-        mass: t.heavy ? 200 : 50,
+        mass: puppet ? 0 : mass,
+        type: puppet ? CANNON.Body.KINEMATIC : CANNON.Body.DYNAMIC,
         shape: new CANNON.Sphere(radius),
         position: new CANNON.Vec3(x, y + radius, z),
         fixedRotation: true,
@@ -70,6 +79,7 @@ export function createHusk(x, z, type = 'normal', { home = null, guardRadius = 1
     mesh.position.copy(body.position);
 
     const husk = {
+        id: id ?? nextHuskId++, puppet, net: null, mass,
         type, t, mesh, body, radius,
         hp: t.hp, stun: 0, dead: false, deathTimer: 0,
         mode: home ? 'guard' : 'idle', // idle, guard, return, chase, windup, lunge
@@ -95,6 +105,10 @@ export function spawnGroup(list) {
 
 // Wake up every husk within radius of a point (gunshots, explosions, screams)
 export function alertHusks(x, z, radius) {
+    if (!runsWorld()) {
+        sendWorld('alert', { x, z, radius }, 'host');
+        return;
+    }
     for (const h of husks) {
         if (h.dead) continue;
         if (Math.hypot(h.body.position.x - x, h.body.position.z - z) < radius) {
@@ -211,14 +225,28 @@ export function updateHusks(dt, time) {
             continue;
         }
 
-        const px = playerBody.position.x;
-        const pz = playerBody.position.z;
+        if (h.puppet) {
+            updatePuppet(h, dt, time);
+            continue;
+        }
+
+        // Go after whichever player is closest. If nobody's alive, stand still.
+        const target = nearestTarget(h.body.position.x, h.body.position.y, h.body.position.z);
+        if (!target) {
+            h.body.velocity.x = 0;
+            h.body.velocity.z = 0;
+            if (h.mode !== 'guard') h.mode = h.home ? 'return' : 'idle';
+            h.mesh.position.copy(h.body.position);
+            continue;
+        }
+        const px = target.x;
+        const pz = target.z;
         const dx = px - h.body.position.x;
         const dz = pz - h.body.position.z;
         const dist = Math.hypot(dx, dz);
 
         // only fight on the same floor as the player, otherwise wander around, don't bite through the ceiling/floir
-        const sameFloor = Math.abs(playerBody.position.y - h.body.position.y) < 1.5;
+        const sameFloor = Math.abs(target.y - h.body.position.y) < 1.5;
         const inner = h.mesh.children[0];
         inner.scale.y = h.t.scale * HUSK_MODEL_SCALE; // undo the wind-up crouch
 
@@ -273,8 +301,8 @@ export function updateHusks(dt, time) {
                 h.modeTimer = h.t.windup;
                 setGlow(h.mesh, 0x663300);
             } else if (dist > h.radius + 0.6 || !sameFloor || h.stairStage) {
-                const target = huskTarget(h, px, playerBody.position.y, pz);
-                moveToward(h, target.x, target.z, h.t.speed);
+                const step = huskTarget(h, px, target.y, pz);
+                moveToward(h, step.x, step.z, h.t.speed);
             } else {
                 h.body.velocity.x = 0;
                 h.body.velocity.z = 0;
@@ -304,7 +332,9 @@ export function updateHusks(dt, time) {
         // Melee hit: one solid hit per second instead of constant drain
         if (sameFloor && dist < h.radius + 1.0 && h.attackCooldown <= 0 && h.stun <= 0 && !game.gameOver) {
             h.attackCooldown = h.t.heavy ? 1.5 : 1;
-            hurtPlayer(h.t.damage, h.body.position, h.t.heavy ? 16 : 6);
+            const push = h.t.heavy ? 16 : 6;
+            if (target.id == null) hurtPlayer(h.t.damage, h.body.position, push);
+            else hurtTeammate(target.id, h.t.damage, h.body.position, push);
             if (h.mode === 'lunge') {
                 h.mode = 'chase';
                 h.lungeCooldown = 2;
@@ -327,14 +357,21 @@ export function updateHusks(dt, time) {
 
 // dir: direction the hit came from (pushes the husk that way)
 // force: multiplies how hard a killing blow flings the body
-export function damageHusk(h, amount, dir, force = 1) {
+// by: the teammate who did it (null if it was you), so they get the points
+export function damageHusk(h, amount, dir, force = 1, by = null) {
     if (h.dead) return;
+    if (h.puppet) {
+        // not our husk: show the hit, and tell the host so it takes the damage
+        flashRed(h.mesh);
+        sendWorld('hit', { id: h.id, amount, dx: dir.x, dz: dir.z, force }, 'host');
+        return;
+    }
     h.hp -= amount;
     h.alertTimer = Math.max(h.alertTimer, 8); // getting hurt makes them angry
     flashRed(h.mesh);
 
     if (h.hp <= 0) {
-        killHusk(h, new CANNON.Vec3(dir.x * 400 * force, 400 * force, dir.z * 400 * force));
+        killHusk(h, new CANNON.Vec3(dir.x * 400 * force, 400 * force, dir.z * 400 * force), by);
     } else if (!h.t.heavy) {
         // brutes shrug off bullets, everything else staggers
         h.stun = 0.3;
@@ -342,23 +379,122 @@ export function damageHusk(h, amount, dir, force = 1) {
     }
 }
 
-function killHusk(h, impulse) {
+// Shove a husk back and stun it (shoves and explosions)
+export function pushHusk(h, dir, stun, speed) {
+    if (h.dead) return;
+    if (h.puppet) {
+        sendWorld('push', { id: h.id, dx: dir.x, dz: dir.z, stun, speed }, 'host');
+        return;
+    }
+    h.stun = Math.max(h.stun, stun);
+    if (speed) h.body.velocity.set(dir.x * speed, 0, dir.z * speed);
+}
+
+function killHusk(h, impulse, by = null) {
     if (h.dead) return;
     h.dead = true;
     h.deathTimer = 1.5;
     setGlow(h.mesh, 0x000000);
+    if (h.puppet) {
+        // a puppet only needs to fall over: the host handles points and loot
+        h.body.type = CANNON.Body.DYNAMIC;
+        h.body.mass = h.mass;
+    }
 
     const q = h.mesh.quaternion;
     h.body.quaternion.set(q.x, q.y, q.z, q.w);
     h.body.fixedRotation = false;
     h.body.updateMassProperties();
     h.body.applyImpulse(impulse.scale(h.body.mass / 50));
-    game.score += h.t.score;
+    if (h.puppet) return;
+    giveScore(by, h.t.score);
 
     // Loot! Dropped pickups vanish after a while
     const x = h.body.position.x;
     const z = h.body.position.z;
     const floorY = Math.max(0, h.body.position.y - h.radius - 0.1);
-    if (Math.random() < h.t.drop) spawnPickup(Math.random() < 0.25 ? 'shells' : 'ammo', x, z, { temporary: true, y: floorY });
-    if (h.type === 'brute') spawnPickup('medkit', x + 1, z, { temporary: true, y: floorY });
+    if (Math.random() < h.t.drop) dropLoot(Math.random() < 0.25 ? 'shells' : 'ammo', x, z, floorY);
+    if (h.type === 'brute') dropLoot('medkit', x + 1, z, floorY);
+}
+
+//------------------------------------------------
+// Multiplayer: the host sends its husks out, everyone else copies them as puppets
+
+// Which way a husk faces, as one angle
+function facing(h) {
+    const v = new THREE.Vector3(0, 0, 1).applyQuaternion(h.mesh.quaternion);
+    return Math.atan2(v.x, v.z);
+}
+
+// Host: every husk as a short list of numbers
+export function huskSnapshot() {
+    const r = (v) => Math.round(v * 100) / 100;
+    return husks.map((h) => [h.id, h.type, r(h.body.position.x), r(h.body.position.y), r(h.body.position.z),
+        r(facing(h)), MODES.indexOf(h.mode), h.dead ? 1 : 0]);
+}
+
+// Everyone else: make our puppets match the host's husks
+export function applyHuskSnapshot(list) {
+    const seen = new Set();
+    for (const [id, type, x, y, z, yaw, mode, dead] of list) {
+        seen.add(id);
+        let h = husks.find((k) => k.id === id);
+        if (!h) {
+            if (dead) continue; // died before we ever saw it
+            h = createHusk(x, z, type, { puppet: true, id });
+            h.body.position.set(x, y, z);
+            h.mesh.position.set(x, y, z);
+        }
+        if (!h.puppet) continue;
+        h.net = { x, y, z, yaw, mode: MODES[mode] || 'idle' };
+        if (dead && !h.dead) killHusk(h, new CANNON.Vec3((Math.random() - 0.5) * 200, 300, (Math.random() - 0.5) * 200));
+    }
+    // husks the host doesn't have anymore
+    for (let i = husks.length - 1; i >= 0; i--) {
+        const h = husks[i];
+        if (h.puppet && !h.dead && !seen.has(h.id)) {
+            scene.remove(h.mesh);
+            world.removeBody(h.body);
+            husks.splice(i, 1);
+        }
+    }
+}
+
+// Slide a puppet toward where the host says it is
+function updatePuppet(h, dt, time) {
+    const n = h.net;
+    if (!n) return;
+    const t = Math.min(1, dt * 12);
+    h.body.position.x += (n.x - h.body.position.x) * t;
+    h.body.position.y += (n.y - h.body.position.y) * t;
+    h.body.position.z += (n.z - h.body.position.z) * t;
+    h.body.velocity.set(0, 0, 0);
+    h.mode = n.mode;
+
+    const inner = h.mesh.children[0];
+    const windup = n.mode === 'windup';
+    inner.scale.y = h.t.scale * HUSK_MODEL_SCALE * (windup ? 0.8 : 1);
+    if (windup !== !!h.glowing) setGlow(h.mesh, windup ? 0x663300 : 0x000000);
+    h.glowing = windup;
+
+    h.mesh.position.copy(h.body.position);
+    h.mesh.position.y += Math.abs(Math.sin(time * (n.mode === 'lunge' ? 20 : 8))) * 0.05;
+    let diff = n.yaw - h.mesh.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    h.mesh.rotation.set(0, h.mesh.rotation.y + diff * t, 0);
+}
+
+// We became the host: puppets turn into real husks that think for themselves
+export function makeHusksReal() {
+    for (const h of husks) {
+        if (!h.puppet) continue;
+        h.puppet = false;
+        if (h.dead) continue;
+        h.body.type = CANNON.Body.DYNAMIC;
+        h.body.mass = h.mass;
+        h.body.updateMassProperties();
+        h.mode = 'idle';
+        h.alertTimer = 4;
+        setGlow(h.mesh, 0x000000);
+    }
 }

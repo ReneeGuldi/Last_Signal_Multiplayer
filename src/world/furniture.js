@@ -81,6 +81,8 @@ export function fCabinet(b, lx, lz, y0 = 0, color = METAL) {
  
 // Creates a couch
 export function fCouch(b, lx, lz, y0 = 0, alongX = true, color = 0x5a4a3a) {
+    // Blockbench couch when it's loaded (it faces -z in Blockbench, so turn it to face the room)
+    if (b.prop('couch', lx, lz, alongX ? Math.PI : -Math.PI / 2, y0)) return;
     const w = alongX ? 2.2 : 0.9;
     const d = alongX ? 0.9 : 2.2;
     b.solid(w, 0.45, d, lx, y0 + 0.22, lz, color);
