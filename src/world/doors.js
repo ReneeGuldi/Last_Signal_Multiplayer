@@ -151,7 +151,10 @@ function swingAway(door, fromX, fromZ) {
 
 function openDoor(door, fromX, fromZ) {
     door.open = true;
-    door.target = swingAway(door, fromX, fromZ);
+    
+    // most doors swing away from whichever player opens them, outward doors ALWAYS swing away from the building
+    door.target = door.swingOut ? swingAway(door, door.swingOut.x, door.swingOut.z) : swingAway(door, fromX, fromZ);
+    
     door.bash = 0;
 }
 

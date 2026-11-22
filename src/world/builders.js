@@ -169,9 +169,9 @@ export function makeBuilder(x, z, flip = false) {
         },
         // Places Blockbench furniture at (lx, lz) inside this building, turned rotY.
         // fallback() builds a code version if the model isn't there.
-        prop(name, lx, lz, rotY = 0, ly = 0, fallback = null) {
+        prop(name, lx, lz, rotY = 0, ly = 0, fallback = null, scale = undefined) {
             // a flipped building is mirrored front-to-back, so turn the furniture to match
-            return placeProp(name, x + lx, z + lz * f, f === 1 ? rotY : Math.PI - rotY, ly, fallback);
+            return placeProp(name, x + lx, z + lz * f, f === 1 ? rotY : Math.PI - rotY, ly, fallback, scale);
         },
         // Adds the finished building to the scene.
         finish() {

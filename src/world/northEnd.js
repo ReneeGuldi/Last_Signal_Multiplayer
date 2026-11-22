@@ -71,8 +71,9 @@ export function buildLaundromat(x, z) {
         w: 10, d: 9, flip: true, storefront: true, sign: 0x3a6a9a, wall: 0xb8b0a0, floor: 0x8a8a84,
         furnish(b) {
             // Blockbench washer/dryer sets along the back wall, or code-built ones if the model isn't loaded
+            // scale 3.4 to make each machine about 0.9 m tall
             const sets = [-3.3, -1.1, 1.1, 3.3];
-            if (b.prop('washer_dryer', sets[0], -3.9, Math.PI)) {
+            if (b.prop('washer_dryer', sets[0], -3.9, Math.PI, 8, null, 3.4)) {
                 for (const mx of sets.slice(1)) b.prop('washer_dryer', mx, -3.9, Math.PI);
             } else {
                 for (let k = 0; k < 6; k++) {
@@ -108,7 +109,7 @@ export function buildGarage(x, z) {
             b.box(2.2, 0.7, 1.7, 3.5, 2.7, -1, 0x4a5a6a);                // cabin
             b.box(2.0, 0.55, 1.75, 3.5, 2.7, -1, 0x2e3a3a);              // windows
             // tool shelves and a workbench
-            for (const sz of [-4.5, -2.7]) b.prop('shelves_short', -6.3, sz, Math.PI / 2, 0, () => fShelf(b, -6.3, sz, 0, 1.6, false, 1.8));
+            for (const sz of [-4.6, -2.6]) b.prop('shelves_short', -6.3, sz, Math.PI / 2, 0, () => fShelf(b, -6.3, sz, 0, 1.6, false, 1.8), 3.1);
             fCounter(b, -3, -5.4, 0, 3.5, true, DARK_WOOD);
             fCrates(b, -5.5, 3.5);
             fDebris(b, 0, 2, 0, 8);

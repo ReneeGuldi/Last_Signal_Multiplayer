@@ -86,6 +86,13 @@ export function buildMultiStory(x, z, o) {
     const angle = Math.atan2(FH, SL) * (o.flip ? -1 : 1);
     const rampMid = b.at(sx, sz0 - SL / 2);
     addSolid(SW, 0.2, Math.hypot(FH, SL) + 0.3, rampMid.x, FH / 2 - 0.05, rampMid.z, angle, 0);
+    // Fill in space under stairs so players cant walk under the steps into the 'wall'
+    for (let i = 0; i < steps; i++) {
+        const top = (i + 1) * (FH / steps) - 0.4;
+        if (top <= 0.05) continue;
+        const p = b.at(sx, sz0 - (i + 0.5) * (SL / steps));
+        addSolid(SW, top, SL / steps, p.x, top / 2, p.z);
+    }
     stairways.push({
         area,
         floorY: FH,

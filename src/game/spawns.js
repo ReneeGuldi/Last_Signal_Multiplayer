@@ -109,7 +109,7 @@ export function spawnEntities() {
     spawnNest(...at('warehouse', -3, 5));
     guards('warehouse', 2, -2, [['brute', 2, -1], ['normal', -3, 2.5], ['normal', 5, 4.5]], 8);
     // The fire station key is in the foreman's desk drawer (on the desk without the model implemented)
-    if (!stockDrawer(...at('warehouse', -8, -6), 'fireKey')) spawnPickup('fireKey', ...at('warehouse', -7.5, -6), { y: 0.82 });
+    if (!stockDrawer(...at('warehouse', -7.6, -5.9), 'fireKey')) spawnPickup('fireKey', ...at('warehouse', -7.1, -5.9), { y: 0.82 });
     spawnPickup('shells', ...at('warehouse', 7, 5));
     spawnPickup('ammo', ...at('warehouse', -1, -3));
     spawnBarrel(...at('warehouse', -4, 9));  // or blow the boards off

@@ -102,7 +102,7 @@ export function buildGrocery(x, z) {
             [-5.6, -3.0, 3.0, 5.6].forEach((ax, k) => {
                 const shelf = k % 2 ? 'shelves_short' : 'shelves_tall';
                 if (!models[shelf]) return fShelf(b, ax, -1, 0, 5, false, 1.8);
-                for (const az of [-2.6, -1.0, 0.6]) b.prop(shelf, ax, az, Math.PI / 2);
+                for (const az of [-3.0, -1.05,  0.9]) b.prop(shelf, ax, az, Math.PI / 2, 0, null, 3.1);
             });
             for (let fx = -6.5; fx <= 6.5; fx += 1.3) {
                 b.solid(1.2, 2.2, 0.8, fx, 1.1, -5.4, 0xd8d8d0);                              // fridge
@@ -170,7 +170,8 @@ export function buildWarehouse(x, z) {
         w: 20, d: 14, height: 5.5, wall: 0x6a6e6a, roof: 0x4a4e4a, sign: 0x5a5a3a, floor: 0x6a665e,
         door: { kind: 'boarded' },
         furnish(b) {
-            for (const rz of [-4.5, -1]) fShelf(b, -4.5, rz, 0, 8, true, 3.2);
+            // racks in store stop shorter of the left wall, make a more clear walk way for the foreman's desk
+            for (const rz of [-4.5, -1]) fShelf(b, -2, rz, 8, 6, true, 3.2);
             fCrates(b, 4, -5);
             fCrates(b, 7, -2.5);
             fCrates(b, 3.5, 1.5);
@@ -186,9 +187,9 @@ export function buildWarehouse(x, z) {
             // pallets
             for (const [px, pz] of [[-7, 3], [-5, 4.5], [-8, 5.5]]) b.box(1.2, 0.15, 1.0, px, 0.08, pz, 0x8a6a44, 0, Math.random(), 0);
             // foreman's desk
-            b.prop('desk_chair', -8, -6, 0, 0, () => {
-                fTable(b, -8, -6, 0, 1.6, 0.9, METAL);
-                fChair(b, -8, -5.2, 0, Math.PI);
+            b.prop('desk_chair', -7.6, -5.9, 0, 0, () => {
+                fTable(b, -7.6, -5.9, 0, 1.6, 0.9, METAL);
+                fChair(b, -7.6, -5.1, 0, Math.PI);
             });
             fCabinet(b, -9.3, -4.5, 0);
             fDebris(b, 0, -2, 0, 6);

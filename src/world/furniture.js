@@ -81,13 +81,18 @@ export function fCabinet(b, lx, lz, y0 = 0, color = METAL) {
  
 // Creates a couch
 export function fCouch(b, lx, lz, y0 = 0, alongX = true, color = 0x5a4a3a) {
-    // Blockbench couch when it's loaded (it faces -z in Blockbench, so turn it to face the room)
-    if (b.prop('couch', lx, lz, alongX ? Math.PI : -Math.PI / 2, y0)) return;
+    const face = alongX ? (lz < 0 ? 1 : -1) : (lx < 0 ? 1 : -1);
+    const rot = alongX ? (face > 0 ? Math.PI : 0) : (face > 0 ? -Math.PI / 2 : Math.PI / 2);
+    const nudge = face * 0.3;
+
+    // Blockbench couch when it's loaded (it faces -z in Blockbench, so turn it to face the room)    
+    if (b.prop('couch', lx + (alongX ? 0 : nudge), lz + (alongX ? nudge : 0), rot, y0, null, 2.0)) return;
+
     const w = alongX ? 2.2 : 0.9;
     const d = alongX ? 0.9 : 2.2;
     b.solid(w, 0.45, d, lx, y0 + 0.22, lz, color);
-    if (alongX) b.box(w, 0.6, 0.2, lx, y0 + 0.65, lz - 0.35, color);
-    else b.box(0.2, 0.6, d, lx - 0.35, y0 + 0.65, lz, color);
+    if (alongX) b.box(w, 0.6, 0.2, lx, y0 + 0.65, lz - face * 0.35, color);
+    else b.box(0.2, 0.6, d, lx - face * 0.35, y0 + 0.65, lz, color);
 }
  
 // Creates a counter

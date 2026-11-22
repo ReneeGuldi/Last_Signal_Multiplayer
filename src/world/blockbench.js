@@ -12,28 +12,6 @@ import { KEY_NAMES, createDoor } from './doors.js';
 
 // ------------------------------------------------
 // Blockbench models used for buildings and furniture.
-//
-// When adding a model:
-// 1. Build it to match the game's character scale. The game scales each model by 2.4
-//    (BLOCKBENCH_SCALE), so one Blockbench unit (16 pixels) becomes 2.4 m in the game.
-//    The player is about 0.74 units tall. Leave doorways at least 0.46 units wide and
-//    around 0.86 units tall so the player can get through.
-// 2. Collisions are created for each cube separately. This keeps walls, floors, and
-//    furniture solid while still letting the player move through open doorways. A mesh
-//    gets one collider around its entire shape, so use meshes for parts the player cannot
-//    reach, like roofs and steeples, or for decoration.
-//    Start a cube or group name with "deco" to leave it out of collision detection.
-//    This is useful for things like rugs, cans, and leaves. Parts smaller than 0.25 m
-//    on every side are skipped automatically.
-// 3. To make a door, name the cube or group "door". It will open when the player presses E.
-//    Keep the handle in the same group; the hinge is placed at the opposite end.
-//    For double doors, use "door_left" and "door_right" as seen from outside. Both doors
-//    will open together. Use "door_locked_police" for a door that needs the police key,
-//    or "door_boarded" for a door covered with planks.
-// 4. To make a drawer, include "drawer" in the cube or group name. Model it in the open
-//    position, and the game will move it closed when the level starts.
-// 5. Export the model with File > Export > Export glTF Model into models/. Add furniture
-//    to MODEL_FILES or buildings to BUILDING_MODELS, and the game will load it automatically.
 
 const BLOCKBENCH_SCALE = 2.4;
 export const drawers = [];
@@ -48,8 +26,9 @@ export function building(name, x, z, opts, buildInCode) {
 
 // Place a furniture model when one is loaded. If it is missing, use the fallback function to create the furniture in code. y is the floor height.
 
-export function placeProp(name, x, z, rotY = 0, y = 0, fallback = null) {
-    if (models[name]) return placeModelBuilding(name, x, z, { rotY, y, reserveSpace: false, center: true, oneBox: true });
+// scale: size multiplier
+export function placeProp(name, x, z, rotY = 0, y = 0, fallback = null, scale = BLOCKBENCH_SCALE) {
+    if (models[name]) return placeModelBuilding(name, x, z, { rotY, y, scale, reserveSpace: false, center: true, oneBox: true });
     if (fallback) fallback();
     return null;
 }
@@ -176,6 +155,11 @@ export function placeModelBuilding(name, x, z, { scale = BLOCKBENCH_SCALE, rotY 
     if (left && right) {
         left.partner = right;
         right.partner = left;
+
+        // Double doors should open outwards
+        const middle = new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3());
+
+        left.swingOut = right.swingOut = { x: middle.x, z: middle.z};
     }
 
         // Work out how each drawer sits in the furniture so it can slide back into place. Only nearby/touching furniture parts are used, not objects sitting in front of it.

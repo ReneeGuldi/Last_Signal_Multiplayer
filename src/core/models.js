@@ -84,11 +84,49 @@ export async function loadModels() {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+                if (isSeeThrough(child.material)) {
+                    // glass painted to be partially see-through in Blockbench (chapel's stained glass, shed window)
+                    child.material.transport = true;
+                    child.material.alphaTest = 0;
+                    child.material.depthWrite = false;
+                    child.castShadow = false;
+                }
             }
         });
         models[name] = model;
     });
 }
+
+// Check whether a texture has partly see-through pixels, not just fully clear or fully solid
+// Fixing export textures that really have glass in them to achieve a real window effect
+const seeThroughCache = newMap();
+function isSeeThrough(material) {
+    const img = material?.map?.image;
+    if (!img) return false;
+    if (seeThroughCache.has(img)) return seeThroughCache.get(img);
+    let result = false;
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, img.width, img.height).data;
+        let partial = 0;
+        for (let i = 3; i < data.length; i += 4) {
+            if (data[i] > 10 && data[i] < 245) partial++;
+        }
+
+        result = partial > (data.length / 4) * 0.01; // atleast 1% of the texture is see-through
+    } catch {
+        result = false;
+    }
+
+    seeThroughCache.set(img, result);
+    return result;
+}
+
+
 
 // Stand-in models if something doesn't load: a plain item-sized box
 function placeholderModel() {
