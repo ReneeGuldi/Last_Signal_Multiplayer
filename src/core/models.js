@@ -86,7 +86,7 @@ export async function loadModels() {
                 child.receiveShadow = true;
                 if (isSeeThrough(child.material)) {
                     // glass painted to be partially see-through in Blockbench (chapel's stained glass, shed window)
-                    child.material.transport = true;
+                    child.material.transparent = true;
                     child.material.alphaTest = 0;
                     child.material.depthWrite = false;
                     child.castShadow = false;
@@ -99,7 +99,7 @@ export async function loadModels() {
 
 // Check whether a texture has partly see-through pixels, not just fully clear or fully solid
 // Fixing export textures that really have glass in them to achieve a real window effect
-const seeThroughCache = newMap();
+const seeThroughCache = new Map();
 function isSeeThrough(material) {
     const img = material?.map?.image;
     if (!img) return false;

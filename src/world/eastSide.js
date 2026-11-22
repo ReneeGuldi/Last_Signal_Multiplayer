@@ -171,7 +171,7 @@ export function buildWarehouse(x, z) {
         door: { kind: 'boarded' },
         furnish(b) {
             // racks in store stop shorter of the left wall, make a more clear walk way for the foreman's desk
-            for (const rz of [-4.5, -1]) fShelf(b, -2, rz, 8, 6, true, 3.2);
+            for (const rz of [-4.5, -1]) fShelf(b, -2, rz, 0, 6, true, 3.2);
             fCrates(b, 4, -5);
             fCrates(b, 7, -2.5);
             fCrates(b, 3.5, 1.5);

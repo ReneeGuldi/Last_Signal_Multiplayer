@@ -73,8 +73,8 @@ export function buildLaundromat(x, z) {
             // Blockbench washer/dryer sets along the back wall, or code-built ones if the model isn't loaded
             // scale 3.4 to make each machine about 0.9 m tall
             const sets = [-3.3, -1.1, 1.1, 3.3];
-            if (b.prop('washer_dryer', sets[0], -3.9, Math.PI, 8, null, 3.4)) {
-                for (const mx of sets.slice(1)) b.prop('washer_dryer', mx, -3.9, Math.PI);
+            if (b.prop('washer_dryer', sets[0], -3.9, Math.PI, 0, null, 3.4)) {
+                for (const mx of sets.slice(1)) b.prop('washer_dryer', mx, -3.9, Math.PI, 0, null, 3.4);
             } else {
                 for (let k = 0; k < 6; k++) {
                     const mx = -3.8 + k * 1.3;
